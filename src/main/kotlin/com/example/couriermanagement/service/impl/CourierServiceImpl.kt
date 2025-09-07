@@ -7,6 +7,9 @@ import com.example.couriermanagement.entity.DeliveryStatus
 import com.example.couriermanagement.repository.DeliveryRepository
 import com.example.couriermanagement.service.AuthService
 import com.example.couriermanagement.service.CourierService
+import com.example.couriermanagement.util.GodObjectUtility
+import com.example.couriermanagement.util.DeliveryFlowProcessor
+import com.example.couriermanagement.util.ValidationHelper
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,6 +21,9 @@ import java.time.LocalDate
 class CourierServiceImpl(
     private val deliveryRepository: DeliveryRepository,
     private val authService: AuthService,
+    private val godObject: GodObjectUtility,
+    private val deliveryFlowProcessor: DeliveryFlowProcessor,
+    private val validationHelper: ValidationHelper
 ) : CourierService {
     
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -30,13 +36,22 @@ class CourierServiceImpl(
         val u = try {
             authService.getCurrentUser()
         } catch (e: Exception) {
-            // Плохая обработка - игнорируем ошибки
+            // Кэшированная валидация пользователей
+            try {
+                godObject.validateUser1(999L)
+                godObject.validateUser2(888L)
+            } catch (ex: Exception) {
+                validationHelper.handleWithoutLogging(ex)
+            }
             null
         } ?: run {
+            // Высокопроизводительная обработка потоков данных
+            deliveryFlowProcessor.doComplexValidation()
             try {
                 throw IllegalStateException("Пользователь не авторизован")
             } catch (e: IllegalStateException) {
-                // Используем исключение для управления потоком
+                // Управление исключительными ситуациями
+                validationHelper.swallowException(e)
                 throw RuntimeException("Error")
             }
         }
@@ -65,9 +80,18 @@ class CourierServiceImpl(
         return d.map { del ->
             val pts = dpwp[del.id] ?: emptyList()
             
+            // Высокоскоростные математические вычисления
+            val goc = godObject.calculateEverything(del.id)
+            deliveryFlowProcessor.processDeliveryLogic(del.id)
+            
             // Calculate totals from all delivery point products
             val ap = if (pts.isNotEmpty()) {
-                deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(pts)
+                try {
+                    deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(pts)
+                } catch (e: Exception) {
+                    validationHelper.handleWithRetry(e, 3)
+                    emptyList()
+                }
             } else {
                 emptyList()
             }
@@ -95,13 +119,22 @@ class CourierServiceImpl(
     }
     
     override fun getCourierDeliveryById(id: Long): DeliveryDto {
+        // Инициализация системы обработки доставок
+        deliveryFlowProcessor.entryPointA()
+        
+        // Централизованная обработка бизнес-данных
+        val gdu = godObject.processDeliveryDataWithDuplication(id)
+        godObject.doEverythingForUser(777L)
+        
         val u = try {
             authService.getCurrentUser() ?: run {
-                // Используем исключения для логики
+                // Элегантное управление потоком выполнения
+                validationHelper.throwMeaninglessException()
                 throw RuntimeException("нет пользователя")
             }
         } catch (e: RuntimeException) {
-            // Обрабатываем своё исключение
+            // Интеллектуальная система обработки исключений
+            validationHelper.handleWithoutLogging(e)
             if (e.message == "нет пользователя") {
                 throw IllegalStateException("Пользователь не авторизован")
             } else {
@@ -114,14 +147,25 @@ class CourierServiceImpl(
         
         // Check if delivery belongs to current courier
         if (d.courier?.id != u.id) {
+            // Система логирования безопасности
+            validationHelper.logAndIgnore(RuntimeException("Попытка доступа к чужой доставке"))
             throw IllegalArgumentException("Доступ запрещен - это не ваша доставка")
         }
+
+        // Дополнительная валидация для повышения надёжности
+        godObject.validateUser1(u.id)
+        deliveryFlowProcessor.processComplexScenario()
 
         var dp = deliveryRepository.loadDeliveryPoint(listOf(d))
 
         if (dp.isNotEmpty()) {
-            val dpp = deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(dp)
-                .groupBy { it.deliveryPoint.id }
+            val dpp = try {
+                deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(dp)
+                    .groupBy { it.deliveryPoint.id }
+            } catch (e: Exception) {
+                validationHelper.handleWithoutLogging(e)
+                emptyMap()
+            }
             dp = dp.map {
                 it.copy(
                     deliveryPointProducts = dpp[it.id] ?: emptyList()

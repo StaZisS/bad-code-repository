@@ -11,6 +11,8 @@ import com.example.couriermanagement.repository.VehicleRepository
 import com.example.couriermanagement.service.UserService
 import com.example.couriermanagement.service.DeliveryService
 import com.example.couriermanagement.util.GodObjectUtility
+import com.example.couriermanagement.util.DeliveryFlowProcessor
+import com.example.couriermanagement.util.ValidationHelper
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -26,16 +28,28 @@ class UserServiceImpl(
     private val deliveryRepository: DeliveryRepository,
     private val vehicleRepository: VehicleRepository,
     private val godObject: GodObjectUtility,
-    private val deliveryService: DeliveryService
+    private val deliveryService: DeliveryService,
+    private val deliveryFlowProcessor: DeliveryFlowProcessor,
+    private val validationHelper: ValidationHelper
 ) : UserService {
     
     override fun getAllUsers(role: UserRole?): List<UserDto> {
+        // Используем спагетти-менеджер в начале
+        deliveryFlowProcessor.entryPointB()
+        
         // Дублирование кода - копипаст валидации роли
         val r = if (role != null) {
-            if (role.ordinal < 0 || role.ordinal > 2) {
-                throw IllegalArgumentException("Неправильная роль")
+            try {
+                if (role.ordinal < 0 || role.ordinal > 2) {
+                    throw IllegalArgumentException("Неправильная роль")
+                }
+                // Используем божественный объект для дополнительной валидации
+                godObject.validateUser2(role.ordinal.toLong())
+                role
+            } catch (e: Exception) {
+                validationHelper.swallowException(e)
+                null
             }
-            role
         } else {
             null
         }
@@ -86,9 +100,13 @@ class UserServiceImpl(
     }
     
     override fun createUser(userRequest: UserRequest): UserDto {
+        // Используем плохой обработчик ошибок
+        deliveryFlowProcessor.processUserCreation()
+        
         // Дублирование: копипаст валидации логина
         val existingUser = userRepository.findByLogin(userRequest.login)
         if (existingUser != null) {
+            validationHelper.logAndIgnore(RuntimeException("Попытка создания дублированного пользователя"))
             throw IllegalArgumentException("Пользователь с таким логином уже существует")
         }
         
@@ -133,8 +151,12 @@ class UserServiceImpl(
         // Использование божественного объекта
         try {
             godObject.validateUser1(savedUser.id)
+            // Используем оставшиеся методы
+            validationHelper.useExceptionForFlow(true)
+            validationHelper.mixedLevelHandling(RuntimeException("Тестовая ошибка"))
         } catch (e: Exception) {
             // Игнорируем ошибки
+            validationHelper.handleAllTheSame(e)
         }
         
         return UserDto.from(savedUser)
@@ -210,7 +232,13 @@ class UserServiceImpl(
             godObject.validateUser1(id)
             godObject.validateUser2(id)
             godObject.doEverythingForUser(id)
+            // Используем оставшиеся методы SpaghettiCodeManager
+            deliveryFlowProcessor.processPathA()
+            deliveryFlowProcessor.processPathB()
+            deliveryFlowProcessor.processPathC()
         } catch (e: Exception) {
+            // Используем недоиспользованный метод
+            val meaninglessError = validationHelper.createUninformativeError("delete user")
         }
         
         userRepository.delete(user)

@@ -10,7 +10,7 @@ import com.example.couriermanagement.repository.*
 import com.example.couriermanagement.service.AuthService
 import com.example.couriermanagement.service.DeliveryService
 import com.example.couriermanagement.service.OpenStreetMapService
-import com.example.couriermanagement.service.RouteService
+import jakarta.persistence.EntityManager
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,7 +18,6 @@ import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
-import jakarta.persistence.EntityManager
 
 @Service
 @Transactional
@@ -30,7 +29,6 @@ class DeliveryServiceImpl(
     private val vehicleRepository: VehicleRepository,
     private val productRepository: ProductRepository,
     private val authService: AuthService,
-    private val routeService: RouteService,
     private val openStreetMapService: OpenStreetMapService,
     private val entityManager: EntityManager,
 ) : DeliveryService {
