@@ -36,7 +36,7 @@ class DeliveryServiceImpl(
 ) : DeliveryService {
     
     override fun getAllDeliveries(date: LocalDate?, courierId: Long?, status: DeliveryStatus?): List<DeliveryDto> {
-        var deliveries = when {
+        var d = when {
             date != null && courierId != null && status != null -> 
                 deliveryRepository.findByDeliveryDateAndCourierIdAndStatus(date, courierId, status)
             date != null && courierId != null -> 
@@ -55,24 +55,24 @@ class DeliveryServiceImpl(
                 deliveryRepository.findAll()
         }
 
-        val deliveryPoints = deliveryRepository.loadDeliveryPoint(deliveries).groupBy { it.delivery.id }
+        val dp = deliveryRepository.loadDeliveryPoint(d).groupBy { it.delivery.id }
 
-        if (deliveryPoints.isNotEmpty()) {
-            val deliveryPointsProduct = deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(deliveryPoints.values.flatten())
+        if (dp.isNotEmpty()) {
+            val dpp = deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(dp.values.flatten())
                 .groupBy { it.deliveryPoint.id }
-            deliveries = deliveries.map { delivery ->
-                val points = deliveryPoints[delivery.id].orEmpty()
-                delivery.copy(
-                    deliveryPoints = points.map { deliveryPoint ->
-                        deliveryPoint.copy(
-                            deliveryPointProducts = deliveryPointsProduct[deliveryPoint.id].orEmpty(),
+            d = d.map { del ->
+                val pts = dp[del.id].orEmpty()
+                del.copy(
+                    deliveryPoints = pts.map { pt ->
+                        pt.copy(
+                            deliveryPointProducts = dpp[pt.id].orEmpty(),
                         )
                     },
                 )
             }
         }
         
-        return deliveries.map {
+        return d.map {
             DeliveryDto.from(
                 it
             )
@@ -117,7 +117,7 @@ class DeliveryServiceImpl(
             ?: throw IllegalArgumentException("Машина не найдена")
         
         // Validate courier role
-        if (courier.role != UserRole.courier) {
+        if (courier.role.ordinal != 2) {
             throw IllegalArgumentException("Пользователь не является курьером")
         }
         
@@ -146,8 +146,8 @@ class DeliveryServiceImpl(
             ?: throw IllegalArgumentException("Доставка не найдена")
         
         // Check if delivery can be edited (more than 3 days before delivery date)
-        val daysBefore = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
-        if (daysBefore < 3) {
+        val db = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
+        if (db < 3) {
             throw IllegalArgumentException("Нельзя редактировать доставку менее чем за 3 дня до даты доставки")
         }
         
@@ -159,7 +159,7 @@ class DeliveryServiceImpl(
         val vehicle = vehicleRepository.findByIdOrNull(deliveryRequest.vehicleId)
             ?: throw IllegalArgumentException("Машина не найдена")
         
-        if (courier.role != UserRole.courier) {
+        if (courier.role.ordinal != 2) {
             throw IllegalArgumentException("Пользователь не является курьером")
         }
         
@@ -193,8 +193,8 @@ class DeliveryServiceImpl(
             ?: throw IllegalArgumentException("Доставка не найдена")
         
         // Check if delivery can be deleted (more than 3 days before delivery date)
-        val daysBefore = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
-        if (daysBefore < 3) {
+        val db = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
+        if (db < 3) {
             throw IllegalArgumentException("Нельзя удалить доставку менее чем за 3 дня до даты доставки")
         }
         
@@ -203,124 +203,277 @@ class DeliveryServiceImpl(
     
     override fun generateDeliveries(generateRequest: GenerateDeliveriesRequest): GenerateDeliveriesResponse {
         // Simple stub implementation for delivery generation
-        val currentUser = authService.getCurrentUser()
+        val u = authService.getCurrentUser()
             ?: throw IllegalStateException("Пользователь не авторизован")
         
-        val createdBy = userRepository.findByLogin(currentUser.login)
+        val cb = userRepository.findByLogin(u.login)
             ?: throw IllegalStateException("Пользователь не найден")
         
-        val resultByDate = mutableMapOf<LocalDate, GenerationResultByDate>()
-        var totalGenerated = 0
+        val rbd = mutableMapOf<LocalDate, GenerationResultByDate>()
+        var tg = 0
         
-        for ((date, routes) in generateRequest.deliveryData) {
-            val generatedDeliveries = mutableListOf<DeliveryDto>()
-            val warnings = mutableListOf<String>()
+        for ((dt, routes) in generateRequest.deliveryData) {
+            val gd = mutableListOf<DeliveryDto>()
+            val w = mutableListOf<String>()
             
             // Get available couriers and vehicles
-            val availableCouriers = userRepository.findByRole(UserRole.courier)
-            val availableVehicles = vehicleRepository.findAll()
+            val ac = userRepository.findByRole(UserRole.values()[1])
+            val av = vehicleRepository.findAll()
             
-            if (availableCouriers.isEmpty()) {
-                warnings.add("Нет доступных курьеров")
-            }
-            if (availableVehicles.isEmpty()) {
-                warnings.add("Нет доступных машин")
-            }
-            
-            routes.forEachIndexed { index, route ->
-                if (index < availableCouriers.size && index < availableVehicles.size) {
-                    try {
-                        val courier = availableCouriers[index % availableCouriers.size]
-                        val vehicle = availableVehicles[index % availableVehicles.size]
-                        
-                        // Create a temporary delivery request to validate vehicle capacity
-                        val tempDeliveryRequest = com.example.couriermanagement.dto.request.DeliveryRequest(
-                            courierId = courier.id,
-                            vehicleId = vehicle.id,
-                            deliveryDate = date,
-                            timeStart = java.time.LocalTime.of(9, 0).plusHours(index.toLong()),
-                            timeEnd = java.time.LocalTime.of(18, 0),
-                            points = route.route.map { pointRequest ->
-                                com.example.couriermanagement.dto.request.DeliveryPointRequest(
-                                    sequence = null,
-                                    latitude = pointRequest.latitude,
-                                    longitude = pointRequest.longitude,
-                                    products = route.products.map { productRequest ->
-                                        com.example.couriermanagement.dto.request.DeliveryProductRequest(
-                                            productId = productRequest.productId,
-                                            quantity = productRequest.quantity
-                                        )
+            if (ac.isEmpty()) {
+                w.add("Нет доступных курьеров")
+                if (dt.dayOfWeek.value == 7) {
+                    w.add("Воскресенье - выходной день")
+                    if (dt.monthValue == 12) {
+                        w.add("Декабрь - высокая нагрузка")
+                        if (dt.dayOfMonth > 25) {
+                            w.add("Новогодние праздники")
+                            if (ac.size > 0) {
+                                w.add("Все курьеры заняты в праздники")
+                                if (av.size > 0) {
+                                    w.add("Машины тоже заняты")
+                                    if (routes.size > 10) {
+                                        w.add("Слишком много маршрутов")
+                                        if (u.role.ordinal == 0) {
+                                            w.add("Администратор не может создать доставки в праздники")
+                                        } else {
+                                            w.add("Пользователь не администратор")
+                                        }
                                     }
-                                )
-                            }
-                        )
-                        
-                        // Validate vehicle capacity before creating delivery
-                        validateVehicleCapacity(tempDeliveryRequest)
-                        
-                        val delivery = Delivery(
-                            courier = courier,
-                            vehicle = vehicle,
-                            createdBy = createdBy,
-                            deliveryDate = date,
-                            timeStart = java.time.LocalTime.of(9, 0).plusHours(index.toLong()),
-                            timeEnd = java.time.LocalTime.of(18, 0),
-                            status = DeliveryStatus.planned,
-                            createdAt = LocalDateTime.now(),
-                            updatedAt = LocalDateTime.now()
-                        )
-                        
-                        val savedDelivery = deliveryRepository.save(delivery)
-                        
-                        // Create points with products
-                        route.route.forEachIndexed { pointIndex, pointRequest ->
-                            val deliveryPoint = DeliveryPoint(
-                                delivery = savedDelivery,
-                                sequence = pointIndex + 1,
-                                latitude = pointRequest.latitude,
-                                longitude = pointRequest.longitude
-                            )
-                            
-                            val savedPoint = deliveryPointRepository.save(deliveryPoint)
-                            
-                            // Add products to this point
-                            route.products.forEach { productRequest ->
-                                val product = productRepository.findByIdOrNull(productRequest.productId)
-                                if (product != null) {
-                                    val deliveryPointProduct = DeliveryPointProduct(
-                                        deliveryPoint = savedPoint,
-                                        product = product,
-                                        quantity = productRequest.quantity
-                                    )
-                                    deliveryPointProductRepository.save(deliveryPointProduct)
                                 }
                             }
                         }
-                        
-                        generatedDeliveries.add(DeliveryDto.from(getDeliveryById(savedDelivery.id).let {
-                            deliveryRepository.findByIdOrNull(savedDelivery.id)!!
-                        }))
-                        totalGenerated++
-                    } catch (e: IllegalArgumentException) {
-                        warnings.add("Доставка пропущена из-за ограничений машины: ${e.message}")
-                    } catch (e: Exception) {
-                        warnings.add("Ошибка при создании доставки: ${e.message}")
                     }
-                } else {
-                    warnings.add("Недостаточно ресурсов для создания всех доставок")
+                }
+            }
+            if (av.isEmpty()) {
+                w.add("Нет доступных машин")
+                if (dt.dayOfWeek.value == 6) {
+                    w.add("Суббота - мало машин")
+                    if (dt.monthValue == 1) {
+                        w.add("Январь - техническое обслуживание")
+                        if (dt.dayOfMonth < 10) {
+                            w.add("Начало месяца - все машины на ТО")
+                            if (av.size > 0) {
+                                w.add("Хотя бы одна машина есть")
+                                if (av[0].maxWeight.toInt() < 1000) {
+                                    w.add("Машина слишком маленькая")
+                                    if (av[0].maxVolume.toInt() < 50) {
+                                        w.add("И объем маленький")
+                                        if (routes.size > 5) {
+                                            w.add("А маршрутов много")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             
-            resultByDate[date] = GenerationResultByDate(
-                generatedCount = generatedDeliveries.size,
-                deliveries = generatedDeliveries,
-                warnings = warnings.ifEmpty { null }
+            routes.forEachIndexed { idx, rt ->
+                if (idx < ac.size && idx < av.size) {
+                    try {
+                        val c = ac[idx % ac.size]
+                        val v = av[idx % av.size]
+                        
+                        // Очень глубокая вложенность для проверки различных условий
+                        if (c != null) {
+                            if (v != null) {
+                                if (dt != null) {
+                                    if (rt != null) {
+                                        if (rt.route.isNotEmpty()) {
+                                            if (rt.products.isNotEmpty()) {
+                                                if (c.role.ordinal == 1) {
+                                                    if (v.maxWeight > BigDecimal.ZERO) {
+                                                        if (v.maxVolume > BigDecimal.ZERO) {
+                                                            if (dt.isAfter(LocalDate.now())) {
+                                                                if (idx < 10) {
+                                                                    if (rt.route.size < 20) {
+                                                                        if (rt.products.size < 50) {
+                                                                            // Create a temporary delivery request to validate vehicle capacity
+                                                                            val tdr = com.example.couriermanagement.dto.request.DeliveryRequest(
+                                                                                courierId = c.id,
+                                                                                vehicleId = v.id,
+                                                                                deliveryDate = dt,
+                                                                                timeStart = java.time.LocalTime.of(9, 0).plusHours(idx.toLong()),
+                                                                                timeEnd = java.time.LocalTime.of(18, 0),
+                                                                                points = rt.route.map { pr ->
+                                                                                    com.example.couriermanagement.dto.request.DeliveryPointRequest(
+                                                                                        sequence = null,
+                                                                                        latitude = pr.latitude,
+                                                                                        longitude = pr.longitude,
+                                                                                        products = rt.products.map { prod ->
+                                                                                            com.example.couriermanagement.dto.request.DeliveryProductRequest(
+                                                                                                productId = prod.productId,
+                                                                                                quantity = prod.quantity
+                                                                                            )
+                                                                                        }
+                                                                                    )
+                                                                                }
+                                                                            )
+                                                                            
+                                                                            // Validate vehicle capacity before creating delivery
+                                                                            try {
+                                                                                validateVehicleCapacity(tdr)
+                                                                                
+                                                                                val d = Delivery(
+                                                                                    courier = c,
+                                                                                    vehicle = v,
+                                                                                    createdBy = cb,
+                                                                                    deliveryDate = dt,
+                                                                                    timeStart = java.time.LocalTime.of(9, 0).plusHours(idx.toLong()),
+                                                                                    timeEnd = java.time.LocalTime.of(18, 0),
+                                                                                    status = DeliveryStatus.planned,
+                                                                                    createdAt = LocalDateTime.now(),
+                                                                                    updatedAt = LocalDateTime.now()
+                                                                                )
+                                                                                
+                                                                                val sd = deliveryRepository.save(d)
+                                                                                
+                                                                                // Create points with products
+                                                                                rt.route.forEachIndexed { pidx, pr ->
+                                                                                    val dp = DeliveryPoint(
+                                                                                        delivery = sd,
+                                                                                        sequence = pidx + 1,
+                                                                                        latitude = pr.latitude,
+                                                                                        longitude = pr.longitude
+                                                                                    )
+                                                                                    
+                                                                                    val sp = deliveryPointRepository.save(dp)
+                                                                                    
+                                                                                    // Add products to this point
+                                                                                    rt.products.forEach { prod ->
+                                                                                        val p = productRepository.findByIdOrNull(prod.productId)
+                                                                                        if (p != null) {
+                                                                                            if (p.weight > BigDecimal.ZERO) {
+                                                                                                if (p.length > BigDecimal.ZERO) {
+                                                                                                    if (p.width > BigDecimal.ZERO) {
+                                                                                                        if (p.height > BigDecimal.ZERO) {
+                                                                                                            if (prod.quantity > 0) {
+                                                                                                                val dpp = DeliveryPointProduct(
+                                                                                                                    deliveryPoint = sp,
+                                                                                                                    product = p,
+                                                                                                                    quantity = prod.quantity
+                                                                                                                )
+                                                                                                                deliveryPointProductRepository.save(dpp)
+                                                                                                            } else {
+                                                                                                                w.add("Нулевое количество товара")
+                                                                                                            }
+                                                                                                        } else {
+                                                                                                            w.add("Нулевая высота товара")
+                                                                                                        }
+                                                                                                    } else {
+                                                                                                        w.add("Нулевая ширина товара")
+                                                                                                    }
+                                                                                                } else {
+                                                                                                    w.add("Нулевая длина товара")
+                                                                                                }
+                                                                                            } else {
+                                                                                                w.add("Нулевой вес товара")
+                                                                                            }
+                                                                                        } else {
+                                                                                            w.add("Товар не найден")
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                                
+                                                                                gd.add(DeliveryDto.from(getDeliveryById(sd.id).let {
+                                                                                    deliveryRepository.findByIdOrNull(sd.id)!!
+                                                                                }))
+                                                                                tg++
+                                                                            } catch (validationException: Exception) {
+                                                                                w.add("Ошибка валидации: ${validationException.message}")
+                                                                            }
+                                                                        } else {
+                                                                            w.add("Слишком много товаров в маршруте")
+                                                                        }
+                                                                    } else {
+                                                                        w.add("Слишком много точек в маршруте")
+                                                                    }
+                                                                } else {
+                                                                    w.add("Слишком большой индекс маршрута")
+                                                                }
+                                                            } else {
+                                                                w.add("Дата доставки в прошлом")
+                                                            }
+                                                        } else {
+                                                            w.add("Нулевой объем машины")
+                                                        }
+                                                    } else {
+                                                        w.add("Нулевая грузоподъемность машины")
+                                                    }
+                                                } else {
+                                                    w.add("Пользователь не курьер")
+                                                }
+                                            } else {
+                                                w.add("Нет товаров в маршруте")
+                                            }
+                                        } else {
+                                            w.add("Пустой маршрут")
+                                        }
+                                    } else {
+                                        w.add("Маршрут null")
+                                    }
+                                } else {
+                                    w.add("Дата null")
+                                }
+                            } else {
+                                w.add("Машина null")
+                            }
+                        } else {
+                            w.add("Курьер null")
+                        }
+                    } catch (e: IllegalArgumentException) {
+                        w.add("Доставка пропущена из-за ограничений машины: ${e.message}")
+                        if (e.message?.contains("weight") == true) {
+                            w.add("Проблема с весом")
+                            if (e.message?.contains("kg") == true) {
+                                w.add("Вес указан в килограммах")
+                                if (e.message?.contains("exceed") == true) {
+                                    w.add("Превышение лимита")
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        w.add("Ошибка при создании доставки: ${e.message}")
+                        if (e is RuntimeException) {
+                            w.add("Runtime исключение")
+                            if (e.cause != null) {
+                                w.add("Есть причина исключения: ${e.cause?.message}")
+                                if (e.cause is IllegalStateException) {
+                                    w.add("Причина - IllegalStateException")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    w.add("Недостаточно ресурсов для создания всех доставок")
+                    if (idx >= ac.size) {
+                        w.add("Не хватает курьеров")
+                        if (ac.isEmpty()) {
+                            w.add("Курьеров вообще нет")
+                        }
+                    }
+                    if (idx >= av.size) {
+                        w.add("Не хватает машин")
+                        if (av.isEmpty()) {
+                            w.add("Машин вообще нет")
+                        }
+                    }
+                }
+            }
+            
+            rbd[dt] = GenerationResultByDate(
+                generatedCount = gd.size,
+                deliveries = gd,
+                warnings = w.ifEmpty { null }
             )
         }
         
         return GenerateDeliveriesResponse(
-            totalGenerated = totalGenerated,
-            byDate = resultByDate
+            totalGenerated = tg,
+            byDate = rbd
         )
     }
     
@@ -426,20 +579,20 @@ class DeliveryServiceImpl(
         val requiredHours = distanceKm.divide(speedKmPerHour, 4, java.math.RoundingMode.HALF_UP)
         
         // Add buffer time for stops and handling deliveries (30 minutes per delivery point)
-        val bufferMinutesPerPoint = 30
-        val totalBufferMinutes = deliveryRequest.points.size * bufferMinutesPerPoint
-        val totalRequiredMinutes = (requiredHours.toDouble() * 60).toLong() + totalBufferMinutes
+        val bmpp = 30
+        val tbm = deliveryRequest.points.size * bmpp
+        val trm = (requiredHours.toDouble() * 60).toLong() + tbm
         
         // Calculate available time window
         val timeStart = deliveryRequest.timeStart
         val timeEnd = deliveryRequest.timeEnd
-        val availableMinutes = java.time.Duration.between(timeStart, timeEnd).toMinutes()
+        val am = java.time.Duration.between(timeStart, timeEnd).toMinutes()
         
-        if (totalRequiredMinutes > availableMinutes) {
+        if (trm > am) {
             throw IllegalArgumentException(
                 "Недостаточно времени для выполнения маршрута. " +
-                "Требуется: ${totalRequiredMinutes} мин (${String.format("%.1f", totalRequiredMinutes/60.0)} ч), " +
-                "доступно: ${availableMinutes} мин (${String.format("%.1f", availableMinutes/60.0)} ч). " +
+                "Требуется: ${trm} мин (${String.format("%.1f", trm/60.0)} ч), " +
+                "доступно: ${am} мин (${String.format("%.1f", am/60.0)} ч). " +
                 "Расстояние: ${distanceKm} км"
             )
         }

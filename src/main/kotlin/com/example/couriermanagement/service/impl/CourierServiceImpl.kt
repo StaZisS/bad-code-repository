@@ -17,7 +17,7 @@ import java.time.LocalDate
 @Transactional(readOnly = true)
 class CourierServiceImpl(
     private val deliveryRepository: DeliveryRepository,
-    private val authService: AuthService
+    private val authService: AuthService,
 ) : CourierService {
     
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
@@ -27,90 +27,112 @@ class CourierServiceImpl(
         dateFrom: LocalDate?,
         dateTo: LocalDate?
     ): List<CourierDeliveryResponse> {
-        val currentUser = authService.getCurrentUser()
-            ?: throw IllegalStateException("Пользователь не авторизован")
+        val u = try {
+            authService.getCurrentUser()
+        } catch (e: Exception) {
+            // Плохая обработка - игнорируем ошибки
+            null
+        } ?: run {
+            try {
+                throw IllegalStateException("Пользователь не авторизован")
+            } catch (e: IllegalStateException) {
+                // Используем исключение для управления потоком
+                throw RuntimeException("Error")
+            }
+        }
         
-        val deliveries = when {
+        val d = when {
             date != null && status != null ->
-                deliveryRepository.findByDeliveryDateAndCourierIdAndStatusWithDetails(date, currentUser.id, status)
+                deliveryRepository.findByDeliveryDateAndCourierIdAndStatusWithDetails(date, u.id, status)
             date != null ->
-                deliveryRepository.findByDeliveryDateAndCourierIdWithDetails(date, currentUser.id)
+                deliveryRepository.findByDeliveryDateAndCourierIdWithDetails(date, u.id)
             status != null && dateFrom != null && dateTo != null ->
-                deliveryRepository.findByCourierIdAndStatusAndDeliveryDateBetweenWithDetails(currentUser.id, status, dateFrom, dateTo)
+                deliveryRepository.findByCourierIdAndStatusAndDeliveryDateBetweenWithDetails(u.id, status, dateFrom, dateTo)
             status != null ->
-                deliveryRepository.findByCourierIdAndStatusWithDetails(currentUser.id, status)
+                deliveryRepository.findByCourierIdAndStatusWithDetails(u.id, status)
             dateFrom != null && dateTo != null ->
-                deliveryRepository.findByCourierIdAndDeliveryDateBetweenWithDetails(currentUser.id, dateFrom, dateTo)
+                deliveryRepository.findByCourierIdAndDeliveryDateBetweenWithDetails(u.id, dateFrom, dateTo)
             else ->
-                deliveryRepository.findByCourierIdWithDetails(currentUser.id)
+                deliveryRepository.findByCourierIdWithDetails(u.id)
         }
 
-        val deliveryPointsWithProducts = if (deliveries.isNotEmpty()) {
-            deliveryRepository.loadDeliveryPoint(deliveries).groupBy { it.delivery.id }
+        val dpwp = if (d.isNotEmpty()) {
+            deliveryRepository.loadDeliveryPoint(d).groupBy { it.delivery.id }
         } else {
             emptyMap()
         }
         
-        return deliveries.map { delivery ->
-            val pointsToUse = deliveryPointsWithProducts[delivery.id] ?: emptyList()
+        return d.map { del ->
+            val pts = dpwp[del.id] ?: emptyList()
             
             // Calculate totals from all delivery point products
-            val allProducts = if (pointsToUse.isNotEmpty()) {
-                deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(pointsToUse)
+            val ap = if (pts.isNotEmpty()) {
+                deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(pts)
             } else {
                 emptyList()
             }
-            val totalWeight = allProducts.sumOf { 
+            val tw = ap.sumOf { 
                 it.product.weight * BigDecimal(it.quantity) 
             }
-            val totalProductsCount = allProducts.sumOf { it.quantity }
+            val tpc = ap.sumOf { it.quantity }
             
             CourierDeliveryResponse(
-                id = delivery.id,
-                deliveryNumber = "DEL-${delivery.deliveryDate.year}-${delivery.id.toString().padStart(3, '0')}",
-                deliveryDate = delivery.deliveryDate,
-                timeStart = delivery.timeStart,
-                timeEnd = delivery.timeEnd,
-                status = delivery.status,
+                id = del.id,
+                deliveryNumber = "DEL-${del.deliveryDate.year}-${del.id.toString().padStart(3, '0')}",
+                deliveryDate = del.deliveryDate,
+                timeStart = del.timeStart,
+                timeEnd = del.timeEnd,
+                status = del.status,
                 vehicle = VehicleInfo(
-                    brand = delivery.vehicle?.brand ?: "Не назначена",
-                    licensePlate = delivery.vehicle?.licensePlate ?: ""
+                    brand = del.vehicle?.brand ?: "Не назначена",
+                    licensePlate = del.vehicle?.licensePlate ?: ""
                 ),
-                pointsCount = pointsToUse.size,
-                productsCount = totalProductsCount,
-                totalWeight = totalWeight
+                pointsCount = pts.size,
+                productsCount = tpc,
+                totalWeight = tw
             )
         }
     }
     
     override fun getCourierDeliveryById(id: Long): DeliveryDto {
-        val currentUser = authService.getCurrentUser()
-            ?: throw IllegalStateException("Пользователь не авторизован")
+        val u = try {
+            authService.getCurrentUser() ?: run {
+                // Используем исключения для логики
+                throw RuntimeException("нет пользователя")
+            }
+        } catch (e: RuntimeException) {
+            // Обрабатываем своё исключение
+            if (e.message == "нет пользователя") {
+                throw IllegalStateException("Пользователь не авторизован")
+            } else {
+                throw e
+            }
+        }
         
-        var delivery = deliveryRepository.findByIdOrNull(id)
+        var d = deliveryRepository.findByIdOrNull(id)
             ?: throw IllegalArgumentException("Доставка не найдена")
         
         // Check if delivery belongs to current courier
-        if (delivery.courier?.id != currentUser.id) {
+        if (d.courier?.id != u.id) {
             throw IllegalArgumentException("Доступ запрещен - это не ваша доставка")
         }
 
-        var deliveryPoints = deliveryRepository.loadDeliveryPoint(listOf(delivery))
+        var dp = deliveryRepository.loadDeliveryPoint(listOf(d))
 
-        if (deliveryPoints.isNotEmpty()) {
-            val deliveryPointsProduct = deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(deliveryPoints)
+        if (dp.isNotEmpty()) {
+            val dpp = deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(dp)
                 .groupBy { it.deliveryPoint.id }
-            deliveryPoints = deliveryPoints.map {
+            dp = dp.map {
                 it.copy(
-                    deliveryPointProducts = deliveryPointsProduct[it.id] ?: emptyList()
+                    deliveryPointProducts = dpp[it.id] ?: emptyList()
                 )
             }
         }
 
-        delivery = delivery.copy(
-            deliveryPoints = deliveryPoints
+        d = d.copy(
+            deliveryPoints = dp
         )
         
-        return DeliveryDto.from(delivery)
+        return DeliveryDto.from(d)
     }
 }
