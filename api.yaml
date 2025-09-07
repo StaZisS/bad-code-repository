@@ -1,0 +1,1131 @@
+openapi: 3.0.0
+info:
+  title: Delivery Management System API
+  description: API для системы управления доставками
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+    description: Аутентификация
+  - name: Vehicles
+    description: Управление машинами (админ)
+  - name: Products
+    description: Управление товарами (админ)
+  - name: Users
+    description: Управление пользователями (админ)
+  - name: Courier
+    description: Операции курьера
+  - name: Deliveries
+    description: Управление доставками (менеджер)
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Вход в систему
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - login
+                - password
+              properties:
+                login:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Успешная авторизация
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserInfo'
+
+  # Сценарий 1: Админ редактирует машины
+  /vehicles:
+    get:
+      tags:
+        - Vehicles
+      summary: Получить список всех машин
+      responses:
+        '200':
+          description: Список машин
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vehicle'
+
+    post:
+      tags:
+        - Vehicles
+      summary: Создать новую машину
+      description: Доступно только для админа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleInput'
+      responses:
+        '201':
+          description: Машина создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /vehicles/{id}:
+    put:
+      tags:
+        - Vehicles
+      summary: Обновить данные машины
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VehicleInput'
+      responses:
+        '200':
+          description: Машина обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Vehicles
+      summary: Удалить машину
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Машина удалена
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Сценарий 2: Админ редактирует товары
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Получить список всех товаров
+      responses:
+        '200':
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+    post:
+      tags:
+        - Products
+      summary: Создать новый товар
+      description: Доступно только для админа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: Товар создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /products/{id}:
+    put:
+      tags:
+        - Products
+      summary: Обновить данные товара
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '200':
+          description: Товар обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Products
+      summary: Удалить товар
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Товар удален
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Сценарий 3: Админ создает и редактирует пользователей
+  /users:
+    get:
+      tags:
+        - Users
+      summary: Получить список пользователей
+      description: Доступно только для админа
+      parameters:
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/UserRole'
+      responses:
+        '200':
+          description: Список пользователей
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Users
+      summary: Создать нового пользователя
+      description: Доступно только для админа
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserInput'
+      responses:
+        '201':
+          description: Пользователь создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}:
+    put:
+      tags:
+        - Users
+      summary: Обновить данные пользователя
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                login:
+                  type: string
+                role:
+                  $ref: '#/components/schemas/UserRole'
+                password:
+                  type: string
+                  description: Опционально, только если нужно сменить пароль
+      responses:
+        '200':
+          description: Пользователь обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Users
+      summary: Удалить пользователя
+      description: Доступно только для админа
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Пользователь удален
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Сценарий 4: Курьер смотрит свои доставки
+  /courier/deliveries:
+    get:
+      tags:
+        - Courier
+      summary: Получить свои доставки
+      description: Курьер видит только назначенные на него доставки с фильтрацией по статусу и дате
+      parameters:
+        - name: date
+          in: query
+          description: Фильтр по дате доставки
+          schema:
+            type: string
+            format: date
+            example: '2025-01-30'
+        - name: status
+          in: query
+          description: Фильтр по статусу
+          schema:
+            $ref: '#/components/schemas/DeliveryStatus'
+        - name: date_from
+          in: query
+          description: Начальная дата периода
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          description: Конечная дата периода
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Список доставок курьера
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CourierDelivery'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /courier/deliveries/{id}:
+    get:
+      tags:
+        - Courier
+      summary: Получить детали своей доставки
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Детали доставки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryFull'
+        '403':
+          description: Доступ запрещен (не своя доставка)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Сценарий 5: Менеджер генерирует доставки
+  /deliveries/generate:
+    post:
+      tags:
+        - Deliveries
+      summary: Автоматически сгенерировать доставки на несколько дней
+      description: |
+        Доступно только для менеджера. Система автоматически распределяет курьеров и машины.
+        Запрос представляет собой мапу, где ключ - дата доставки, значение - список маршрутов с товарами.
+        Для каждого маршрута можно указать товары, которые нужно доставить по этому маршруту.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties:
+                type: array
+                description: Массив маршрутов для конкретной даты
+                items:
+                  type: object
+                  required:
+                    - route
+                    - products
+                  properties:
+                    route:
+                      type: array
+                      description: Точки маршрута в порядке следования
+                      minItems: 1
+                      items:
+                        $ref: '#/components/schemas/DeliveryPointInput'
+                    products:
+                      type: array
+                      description: Товары для доставки по этому маршруту
+                      minItems: 1
+                      items:
+                        type: object
+                        required:
+                          - product_id
+                          - quantity
+                        properties:
+                          product_id:
+                            type: integer
+                            description: ID товара
+                          quantity:
+                            type: integer
+                            minimum: 1
+                            description: Количество товара
+              example:
+                '2025-01-30':
+                  - route:
+                      - latitude: 55.7558
+                        longitude: 37.6173
+                      - latitude: 55.7600
+                        longitude: 37.6200
+                    products:
+                      - product_id: 1
+                        quantity: 5
+                      - product_id: 2
+                        quantity: 3
+                  - route:
+                      - latitude: 55.7700
+                        longitude: 37.6300
+                      - latitude: 55.7750
+                        longitude: 37.6350
+                    products:
+                      - product_id: 3
+                        quantity: 10
+                '2025-01-31':
+                  - route:
+                      - latitude: 55.7800
+                        longitude: 37.6400
+                    products:
+                      - product_id: 1
+                        quantity: 20
+      responses:
+        '200':
+          description: Доставки успешно сгенерированы
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_generated:
+                    type: integer
+                    description: Общее количество созданных доставок
+                  by_date:
+                    type: object
+                    description: Результаты генерации по датам
+                    additionalProperties:
+                      type: object
+                      properties:
+                        generated_count:
+                          type: integer
+                          description: Количество доставок на эту дату
+                        deliveries:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/DeliveryShort'
+                        warnings:
+                          type: array
+                          description: Предупреждения при генерации
+                          items:
+                            type: string
+                example:
+                  total_generated: 5
+                  by_date:
+                    '2025-01-30':
+                      generated_count: 3
+                      deliveries:
+                        - id: 1
+                          delivery_number: 'DEL-2025-001'
+                          courier:
+                            id: 1
+                            name: 'Иван Иванов'
+                            role: 'courier'
+                          vehicle:
+                            id: 1
+                            brand: 'Ford Transit'
+                            license_plate: 'А123БВ'
+                          delivery_date: '2025-01-30'
+                          time_start: '09:00'
+                          time_end: '12:00'
+                          status: 'planned'
+                      warnings:
+                        - 'Не хватило курьеров для оптимального распределения'
+                    '2025-01-31':
+                      generated_count: 2
+                      deliveries:
+                        - id: 4
+                          delivery_number: 'DEL-2025-004'
+                          courier:
+                            id: 2
+                            name: 'Петр Петров'
+                            role: 'courier'
+                          vehicle:
+                            id: 2
+                            brand: 'Mercedes Sprinter'
+                            license_plate: 'В456ГД'
+                          delivery_date: '2025-01-31'
+                          time_start: '10:00'
+                          time_end: '14:00'
+                          status: 'planned'
+        '400':
+          description: Ошибка при генерации
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+                      details:
+                        type: object
+                        additionalProperties:
+                          type: array
+                          items:
+                            type: string
+              example:
+                error:
+                  code: 'GENERATION_FAILED'
+                  message: 'Не удалось сгенерировать доставки для некоторых дат'
+                  details:
+                    '2025-01-30':
+                      - 'Недостаточно доступных курьеров'
+                      - 'Все машины заняты'
+                    '2025-01-31':
+                      - 'Превышена суммарная вместимость доступных машин'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # Сценарий 6: Менеджер составляет доставки вручную
+  /deliveries:
+    get:
+      tags:
+        - Deliveries
+      summary: Получить список доставок
+      description: Доступно только для менеджера
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: courier_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/DeliveryStatus'
+      responses:
+        '200':
+          description: Список доставок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryShort'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Deliveries
+      summary: Создать доставку вручную
+      description: Доступно только для менеджера. Проверяется время маршрута и вместимость машины
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryInput'
+      responses:
+        '201':
+          description: Доставка создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryFull'
+        '400':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                time_error:
+                  summary: Недостаточно времени для маршрута
+                  value:
+                    error:
+                      code: 'INSUFFICIENT_TIME'
+                      message: 'Указанное время (180 минут) меньше необходимого для маршрута (240 минут)'
+                capacity_error:
+                  summary: Превышена вместимость
+                  value:
+                    error:
+                      code: 'CAPACITY_EXCEEDED'
+                      message: 'Общий вес товаров (1200 кг) превышает вместимость машины (1000 кг)'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # Сценарий 7: Менеджер редактирует доставки
+  /deliveries/{id}:
+    get:
+      tags:
+        - Deliveries
+      summary: Получить детали доставки
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Детали доставки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryFull'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Deliveries
+      summary: Обновить доставку
+      description: Доступно только для менеджера. Нельзя редактировать за 3 дня до доставки
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryInput'
+      responses:
+        '200':
+          description: Доставка обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryFull'
+        '400':
+          description: Ошибка валидации (время/вместимость)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Редактирование запрещено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: 'EDIT_DEADLINE_PASSED'
+                  message: 'Нельзя редактировать доставку менее чем за 3 дня до даты доставки'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Deliveries
+      summary: Удалить доставку
+      description: Доступно только для менеджера. Нельзя удалять за 3 дня до доставки
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '204':
+          description: Доставка удалена
+        '403':
+          description: Удаление запрещено (срок или роль)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Вспомогательные endpoints для валидации
+  /routes/calculate:
+    post:
+      tags:
+        - Deliveries
+      summary: Рассчитать время маршрута
+      description: Используется для проверки времени при создании доставки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - points
+              properties:
+                points:
+                  type: array
+                  minItems: 2
+                  items:
+                    type: object
+                    required:
+                      - latitude
+                      - longitude
+                    properties:
+                      latitude:
+                        type: number
+                        format: double
+                      longitude:
+                        type: number
+                        format: double
+      responses:
+        '200':
+          description: Расчет маршрута
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distance_km:
+                    type: number
+                  duration_minutes:
+                    type: integer
+                  suggested_time:
+                    type: object
+                    properties:
+                      start:
+                        type: string
+                        format: time
+                      end:
+                        type: string
+                        format: time
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  responses:
+    Forbidden:
+      description: Доступ запрещен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Ресурс не найден
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    UserRole:
+      type: string
+      enum:
+        - admin
+        - manager
+        - courier
+
+    DeliveryStatus:
+      type: string
+      enum:
+        - planned
+        - in_progress
+        - completed
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties:
+                type: string
+
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        login:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        created_at:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required:
+        - login
+        - password
+        - name
+        - role
+      properties:
+        login:
+          type: string
+        password:
+          type: string
+        name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: integer
+        brand:
+          type: string
+        license_plate:
+          type: string
+        max_weight:
+          type: number
+          description: Максимальный вес в кг
+        max_volume:
+          type: number
+          description: Максимальный объём в м³
+
+    VehicleInput:
+      type: object
+      required:
+        - brand
+        - license_plate
+        - max_weight
+        - max_volume
+      properties:
+        brand:
+          type: string
+        license_plate:
+          type: string
+        max_weight:
+          type: number
+          minimum: 0
+        max_volume:
+          type: number
+          minimum: 0
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        weight:
+          type: number
+          description: Вес в кг
+        length:
+          type: number
+          description: Длина в см
+        width:
+          type: number
+          description: Ширина в см
+        height:
+          type: number
+          description: Высота в см
+
+    ProductInput:
+      type: object
+      required:
+        - name
+        - weight
+        - length
+        - width
+        - height
+      properties:
+        name:
+          type: string
+        weight:
+          type: number
+          minimum: 0
+        length:
+          type: number
+          minimum: 0
+        width:
+          type: number
+          minimum: 0
+        height:
+          type: number
+          minimum: 0
+
+    DeliveryPointInput:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+
+    DeliveryPoint:
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: integer
+        - $ref: '#/components/schemas/DeliveryPointInput'
+
+    DeliveryProductInput:
+      type: object
+      required:
+        - product_id
+        - quantity
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+
+    DeliveryProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+        product:
+          $ref: '#/components/schemas/Product'
+        quantity:
+          type: integer
+
+    DeliveryInput:
+      type: object
+      required:
+        - courier_id
+        - vehicle_id
+        - delivery_date
+        - time_start
+        - time_end
+        - points
+        - products
+      properties:
+        courier_id:
+          type: integer
+        vehicle_id:
+          type: integer
+        delivery_date:
+          type: string
+          format: date
+        time_start:
+          type: string
+          format: time
+          example: '09:00'
+        time_end:
+          type: string
+          format: time
+          example: '18:00'
+        points:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DeliveryPointInput'
+        products:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DeliveryProductInput'
+
+    DeliveryShort:
+      type: object
+      properties:
+        id:
+          type: integer
+        delivery_number:
+          type: string
+        courier:
+          $ref: '#/components/schemas/UserInfo'
+        vehicle:
+          $ref: '#/components/schemas/Vehicle'
+        delivery_date:
+          type: string
+          format: date
+        time_start:
+          type: string
+          format: time
+        time_end:
+          type: string
+          format: time
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        points_count:
+          type: integer
+        total_weight:
+          type: number
+        total_volume:
+          type: number
+
+    CourierDelivery:
+      type: object
+      properties:
+        id:
+          type: integer
+        delivery_number:
+          type: string
+        delivery_date:
+          type: string
+          format: date
+        time_start:
+          type: string
+          format: time
+        time_end:
+          type: string
+          format: time
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        vehicle:
+          type: object
+          properties:
+            brand:
+              type: string
+            license_plate:
+              type: string
+        points_count:
+          type: integer
+        products_count:
+          type: integer
+        total_weight:
+          type: number
+
+    DeliveryFull:
+      type: object
+      properties:
+        id:
+          type: integer
+        delivery_number:
+          type: string
+        courier:
+          $ref: '#/components/schemas/UserInfo'
+        vehicle:
+          $ref: '#/components/schemas/Vehicle'
+        created_by:
+          $ref: '#/components/schemas/UserInfo'
+        delivery_date:
+          type: string
+          format: date
+        time_start:
+          type: string
+          format: time
+        time_end:
+          type: string
+          format: time
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryPoint'
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryProduct'
+        total_weight:
+          type: number
+        total_volume:
+          type: number
+        can_edit:
+          type: boolean
+          description: Можно ли редактировать (false если до доставки < 3 дней)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
