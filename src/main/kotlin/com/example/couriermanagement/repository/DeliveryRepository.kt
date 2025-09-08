@@ -35,6 +35,8 @@ interface DeliveryRepository : JpaRepository<Delivery, Long> {
     fun findByCourierIdAndStatusAndDeliveryDateBetween(courierId: Long, status: DeliveryStatus, dateFrom: LocalDate, dateTo: LocalDate): List<Delivery>
     
     fun findByStatus(status: DeliveryStatus): List<Delivery>
+
+    fun findByVehicleId(vehicleId: Long): List<Delivery>
     
     @Query("""
         SELECT d FROM Delivery d 
@@ -195,4 +197,14 @@ interface DeliveryRepository : JpaRepository<Delivery, Long> {
         @Param("timeStart") timeStart: java.time.LocalTime,
         @Param("timeEnd") timeEnd: java.time.LocalTime
     ): List<Delivery>
+
+    // нужно по id product получить delivery
+    @Query("""
+        SELECT d FROM Delivery d 
+        JOIN d.deliveryPoints dp 
+        JOIN dp.deliveryPointProducts dpp 
+        WHERE dpp.product.id = :productId
+    """)
+    fun findByProductId(@Param("productId") productId: Long): List<Delivery>
+
 }
