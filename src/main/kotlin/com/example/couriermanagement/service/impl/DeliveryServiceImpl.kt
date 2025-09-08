@@ -1,6 +1,8 @@
 package com.example.couriermanagement.service.impl
 
 import com.example.couriermanagement.dto.DeliveryDto
+import com.example.couriermanagement.dto.request.DeliveryPointRequest
+import com.example.couriermanagement.dto.request.DeliveryProductRequest
 import com.example.couriermanagement.dto.request.DeliveryRequest
 import com.example.couriermanagement.dto.request.GenerateDeliveriesRequest
 import com.example.couriermanagement.dto.response.GenerateDeliveriesResponse
@@ -113,8 +115,7 @@ class DeliveryServiceImpl(
         
         val vehicle = vehicleRepository.findByIdOrNull(deliveryRequest.vehicleId)
             ?: throw IllegalArgumentException("Машина не найдена")
-        
-        // Validate courier role
+
         if (courier.role.ordinal != 2) {
             throw IllegalArgumentException("Пользователь не является курьером")
         }
@@ -132,8 +133,7 @@ class DeliveryServiceImpl(
         )
         
         val savedDelivery = deliveryRepository.save(delivery)
-        
-        // Create delivery points with products
+
         createDeliveryPointsWithProducts(savedDelivery, deliveryRequest)
         
         return getDeliveryById(savedDelivery.id)
@@ -142,8 +142,7 @@ class DeliveryServiceImpl(
     override fun updateDelivery(id: Long, deliveryRequest: DeliveryRequest): DeliveryDto {
         val delivery = deliveryRepository.findByIdOrNull(id)
             ?: throw IllegalArgumentException("Доставка не найдена")
-        
-        // Check if delivery can be edited (more than 3 days before delivery date)
+
         val db = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
         if (db < 3) {
             throw IllegalArgumentException("Нельзя редактировать доставку менее чем за 3 дня до даты доставки")
@@ -171,14 +170,12 @@ class DeliveryServiceImpl(
         )
         
         val savedDelivery = deliveryRepository.save(updatedDelivery)
-        
-        // Remove old points and products, create new ones
+
         deliveryPointRepository.findByDeliveryId(delivery.id).forEach { point ->
             deliveryPointProductRepository.deleteByDeliveryPointId(point.id)
         }
         deliveryPointRepository.deleteByDeliveryId(delivery.id)
-        
-        // Flush deletions to avoid unique constraint violations
+
         entityManager.flush()
         
         createDeliveryPointsWithProducts(savedDelivery, deliveryRequest)
@@ -189,8 +186,7 @@ class DeliveryServiceImpl(
     override fun deleteDelivery(id: Long) {
         val delivery = deliveryRepository.findByIdOrNull(id)
             ?: throw IllegalArgumentException("Доставка не найдена")
-        
-        // Check if delivery can be deleted (more than 3 days before delivery date)
+
         val db = ChronoUnit.DAYS.between(LocalDate.now(), delivery.deliveryDate)
         if (db < 3) {
             throw IllegalArgumentException("Нельзя удалить доставку менее чем за 3 дня до даты доставки")
@@ -200,7 +196,6 @@ class DeliveryServiceImpl(
     }
     
     override fun generateDeliveries(generateRequest: GenerateDeliveriesRequest): GenerateDeliveriesResponse {
-        // Simple stub implementation for delivery generation
         val u = authService.getCurrentUser()
             ?: throw IllegalStateException("Пользователь не авторизован")
         
@@ -213,9 +208,8 @@ class DeliveryServiceImpl(
         for ((dt, routes) in generateRequest.deliveryData) {
             val gd = mutableListOf<DeliveryDto>()
             val w = mutableListOf<String>()
-            
-            // Get available couriers and vehicles
-            val ac = userRepository.findByRole(UserRole.values()[1])
+
+            val ac = userRepository.findByRole(UserRole.entries[2])
             val av = vehicleRepository.findAll()
             
             if (ac.isEmpty()) {
@@ -274,8 +268,7 @@ class DeliveryServiceImpl(
                     try {
                         val c = ac[idx % ac.size]
                         val v = av[idx % av.size]
-                        
-                        // Очень глубокая вложенность для проверки различных условий
+
                         if (c != null) {
                             if (v != null) {
                                 if (dt != null) {
@@ -289,20 +282,19 @@ class DeliveryServiceImpl(
                                                                 if (idx < 10) {
                                                                     if (rt.route.size < 20) {
                                                                         if (rt.products.size < 50) {
-                                                                            // Create a temporary delivery request to validate vehicle capacity
-                                                                            val tdr = com.example.couriermanagement.dto.request.DeliveryRequest(
+                                                                            val tdr = DeliveryRequest(
                                                                                 courierId = c.id,
                                                                                 vehicleId = v.id,
                                                                                 deliveryDate = dt,
                                                                                 timeStart = java.time.LocalTime.of(9, 0).plusHours(idx.toLong()),
                                                                                 timeEnd = java.time.LocalTime.of(18, 0),
                                                                                 points = rt.route.map { pr ->
-                                                                                    com.example.couriermanagement.dto.request.DeliveryPointRequest(
+                                                                                    DeliveryPointRequest(
                                                                                         sequence = null,
                                                                                         latitude = pr.latitude,
                                                                                         longitude = pr.longitude,
                                                                                         products = rt.products.map { prod ->
-                                                                                            com.example.couriermanagement.dto.request.DeliveryProductRequest(
+                                                                                            DeliveryProductRequest(
                                                                                                 productId = prod.productId,
                                                                                                 quantity = prod.quantity
                                                                                             )
@@ -310,8 +302,7 @@ class DeliveryServiceImpl(
                                                                                     )
                                                                                 }
                                                                             )
-                                                                            
-                                                                            // Validate vehicle capacity before creating delivery
+
                                                                             try {
                                                                                 validateVehicleCapacity(tdr)
                                                                                 
@@ -328,8 +319,7 @@ class DeliveryServiceImpl(
                                                                                 )
                                                                                 
                                                                                 val sd = deliveryRepository.save(d)
-                                                                                
-                                                                                // Create points with products
+
                                                                                 rt.route.forEachIndexed { pidx, pr ->
                                                                                     val dp = DeliveryPoint(
                                                                                         delivery = sd,
@@ -339,8 +329,7 @@ class DeliveryServiceImpl(
                                                                                     )
                                                                                     
                                                                                     val sp = deliveryPointRepository.save(dp)
-                                                                                    
-                                                                                    // Add products to this point
+
                                                                                     rt.products.forEach { prod ->
                                                                                         val p = productRepository.findByIdOrNull(prod.productId)
                                                                                         if (p != null) {
@@ -483,11 +472,9 @@ class DeliveryServiceImpl(
         if (deliveryRequest.deliveryDate.isBefore(LocalDate.now())) {
             throw IllegalArgumentException("Дата доставки не может быть в прошлом")
         }
-        
-        // Vehicle capacity validation - check if vehicle can handle the load with existing deliveries
+
         validateVehicleCapacity(deliveryRequest)
-        
-        // Route time validation - check if the provided time window is sufficient for the route
+
         if (deliveryRequest.points.size >= 2) {
             validateRouteTime(deliveryRequest)
         }
@@ -496,8 +483,7 @@ class DeliveryServiceImpl(
     private fun validateVehicleCapacity(deliveryRequest: DeliveryRequest) {
         val vehicle = vehicleRepository.findByIdOrNull(deliveryRequest.vehicleId)
             ?: throw IllegalArgumentException("Машина не найдена")
-        
-        // Calculate total weight and volume for the new delivery
+
         var totalWeight = BigDecimal.ZERO
         var totalVolume = BigDecimal.ZERO
         
@@ -511,17 +497,14 @@ class DeliveryServiceImpl(
                 totalVolume = totalVolume.add(product.getVolume().multiply(quantity))
             }
         }
-        
-        // Find existing deliveries for this vehicle on the same date with overlapping time periods
-        // (excluding cancelled and completed deliveries)
+
         val existingDeliveries = deliveryRepository.findByDateVehicleAndOverlappingTime(
             deliveryRequest.deliveryDate, 
             deliveryRequest.vehicleId,
             deliveryRequest.timeStart,
             deliveryRequest.timeEnd
         )
-        
-        // Calculate weight and volume from existing deliveries
+
         var existingWeight = BigDecimal.ZERO
         var existingVolume = BigDecimal.ZERO
         
@@ -536,8 +519,7 @@ class DeliveryServiceImpl(
                 }
             }
         }
-        
-        // Check total capacity
+
         val totalRequiredWeight = existingWeight.add(totalWeight)
         val totalRequiredVolume = existingVolume.add(totalVolume)
         
@@ -563,25 +545,21 @@ class DeliveryServiceImpl(
     private fun validateRouteTime(deliveryRequest: DeliveryRequest) {
         val firstPoint = deliveryRequest.points.first()
         val lastPoint = deliveryRequest.points.last()
-        
-        // Calculate distance between first and last point using OpenStreetMap
+
         val distanceKm = openStreetMapService.calculateDistance(
             startLatitude = firstPoint.latitude,
             startLongitude = firstPoint.longitude,
             endLatitude = lastPoint.latitude,
             endLongitude = lastPoint.longitude
         )
-        
-        // Calculate required time for courier at 60 km/h speed
+
         val speedKmPerHour = BigDecimal("60")
         val requiredHours = distanceKm.divide(speedKmPerHour, 4, java.math.RoundingMode.HALF_UP)
-        
-        // Add buffer time for stops and handling deliveries (30 minutes per delivery point)
+
         val bmpp = 30
         val tbm = deliveryRequest.points.size * bmpp
         val trm = (requiredHours.toDouble() * 60).toLong() + tbm
-        
-        // Calculate available time window
+
         val timeStart = deliveryRequest.timeStart
         val timeEnd = deliveryRequest.timeEnd
         val am = java.time.Duration.between(timeStart, timeEnd).toMinutes()
@@ -606,8 +584,7 @@ class DeliveryServiceImpl(
             )
             
             val savedPoint = deliveryPointRepository.save(deliveryPoint)
-            
-            // Create products for this point
+
             pointRequest.products.forEach { productRequest ->
                 val product = productRepository.findByIdOrNull(productRequest.productId)
                     ?: throw IllegalArgumentException("Товар с ID ${productRequest.productId} не найден")

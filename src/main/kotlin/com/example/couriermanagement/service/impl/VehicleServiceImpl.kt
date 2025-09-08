@@ -20,7 +20,6 @@ class VehicleServiceImpl(
     }
     
     override fun createVehicle(vehicleRequest: VehicleRequest): VehicleDto {
-        // Check if license plate already exists
         if (vehicleRepository.findByLicensePlate(vehicleRequest.licensePlate) != null) {
             throw IllegalArgumentException("Машина с таким номером уже существует")
         }
@@ -39,8 +38,7 @@ class VehicleServiceImpl(
     override fun updateVehicle(id: Long, vehicleRequest: VehicleRequest): VehicleDto {
         val vehicle = vehicleRepository.findByIdOrNull(id)
             ?: throw IllegalArgumentException("Машина не найдена")
-        
-        // Check if new license plate already exists (if being changed)
+
         if (vehicleRequest.licensePlate != vehicle.licensePlate) {
             if (vehicleRepository.findByLicensePlate(vehicleRequest.licensePlate) != null) {
                 throw IllegalArgumentException("Машина с таким номером уже существует")

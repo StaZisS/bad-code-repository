@@ -17,8 +17,7 @@ fun main(args: Array<String>) {
             println("  - $name")
         }
     }
-    
-    // Test basic authentication functionality
+
     try {
         val jwtUtil = context.getBean("jwtUtil")
         println("JWT util bean found: $jwtUtil")

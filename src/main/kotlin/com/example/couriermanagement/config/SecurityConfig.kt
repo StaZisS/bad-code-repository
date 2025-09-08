@@ -37,7 +37,7 @@ class SecurityConfig(
                     .anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
-            .headers { it.frameOptions().disable() } // For H2 console
+            .headers { it.frameOptions().disable() }
 
         return http.build()
     }

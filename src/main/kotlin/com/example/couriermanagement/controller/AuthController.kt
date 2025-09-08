@@ -56,8 +56,7 @@ class AuthController(
             result["currentHash"] = adminUser.passwordHash
             result["newHash"] = newHash
             result["matches"] = passwordEncoder.matches("admin123", adminUser.passwordHash).toString()
-            
-            // Update the password hash
+
             val updatedUser = adminUser.copy(passwordHash = newHash)
             userRepository.save(updatedUser)
             result["updated"] = "true"

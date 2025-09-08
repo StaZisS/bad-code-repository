@@ -51,9 +51,6 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
     jvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dconsole.encoding=UTF-8")
 }
 
-// Test task disabled due to Gradle compatibility issues
-// Tests can be run via custom TestRunner or manual endpoint testing
-
 task<JavaExec>("runTests") {
     classpath = sourceSets["main"].runtimeClasspath + sourceSets["test"].runtimeClasspath
     mainClass.set("TestRunnerKt")

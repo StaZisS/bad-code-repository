@@ -49,7 +49,6 @@ class JwtAuthenticationFilter(
                 }
             }
         } catch (e: Exception) {
-            // Invalid token, continue without authentication
         }
 
         filterChain.doFilter(request, response)

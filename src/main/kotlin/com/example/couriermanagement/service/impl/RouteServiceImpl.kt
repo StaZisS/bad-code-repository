@@ -14,13 +14,10 @@ import kotlin.random.Random
 class RouteServiceImpl : RouteService {
     
     override fun calculateRoute(request: RouteCalculationRequest): RouteCalculationResponse {
-        // Simple stub implementation - calculate approximate distance and time
-        
         if (request.points.size < 2) {
             throw IllegalArgumentException("Маршрут должен содержать минимум 2 точки")
         }
-        
-        // Calculate total distance using Haversine formula (approximate)
+
         var totalDistance = BigDecimal.ZERO
         
         for (i in 0 until request.points.size - 1) {
@@ -36,18 +33,15 @@ class RouteServiceImpl : RouteService {
             
             totalDistance = totalDistance.add(BigDecimal.valueOf(distance))
         }
-        
-        // Approximate travel time based on average speed of 30 km/h in city
+
         val averageSpeedKmh = 30.0
         val durationHours = totalDistance.toDouble() / averageSpeedKmh
         val durationMinutes = (durationHours * 60).toInt()
-        
-        // Add some buffer time for stops and delays (20-30% extra)
+
         val bufferMultiplier = 1.0 + (Random.nextDouble(0.2, 0.3))
         val totalDurationMinutes = (durationMinutes * bufferMultiplier).toInt()
-        
-        // Suggest optimal time window
-        val suggestedStart = LocalTime.of(9, 0) // Start at 9 AM
+
+        val suggestedStart = LocalTime.of(9, 0)
         val suggestedEnd = suggestedStart.plusMinutes(totalDurationMinutes.toLong())
         
         return RouteCalculationResponse(
@@ -59,12 +53,9 @@ class RouteServiceImpl : RouteService {
             )
         )
     }
-    
-    /**
-     * Calculate distance between two points using Haversine formula
-     */
+
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val earthRadius = 6371.0 // Earth radius in kilometers
+        val radius = 6371.0
         
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
@@ -72,6 +63,6 @@ class RouteServiceImpl : RouteService {
         val a = sin(dLat / 2).pow(2) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         
-        return earthRadius * c
+        return radius * c
     }
 }

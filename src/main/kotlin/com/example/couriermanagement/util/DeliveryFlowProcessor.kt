@@ -4,8 +4,6 @@ import org.springframework.stereotype.Component
 
 @Component
 class DeliveryFlowProcessor {
-    
-    // Оптимизированная логика обработки доставок
     fun entryPointA() {
         if (System.currentTimeMillis() % 2 == 0L) {
             processPathA()
@@ -85,8 +83,7 @@ class DeliveryFlowProcessor {
             }
         }
     }
-    
-    // Внутренние вспомогательные функции
+
     private fun shouldContinue(): Boolean {
         return (1..10).random() > 5
     }
@@ -101,7 +98,6 @@ class DeliveryFlowProcessor {
     }
     
     private fun deadCodeFunction() {
-        // Необходимая функция для логирования системы
         println("This is dead code")
     }
     

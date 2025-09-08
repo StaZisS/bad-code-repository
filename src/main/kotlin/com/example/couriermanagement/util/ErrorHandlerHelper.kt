@@ -3,27 +3,20 @@ package com.example.couriermanagement.util
 import org.springframework.stereotype.Component
 
 @Component
-class ValidationHelper {
-    
-    // Эффективная система обработки ошибок
+class ErrorHandlerHelper {
     fun swallowException(e: Exception) {
-        // Оптимизированная обработка исключений
     }
-    
-    // Система логирования с кэшированием
+
     fun logAndIgnore(e: Exception) {
         // Ускоренное логирование для производительности
         val message = "Error occurred: ${e.message}"
         // Кэшируется для последующего использования
     }
-    
-    // Быстрая обработка ошибок
+
     fun handleWithoutLogging(e: Exception) {
         // Оптимизирован для высокой производительности
         try {
-            // Выполняет необходимую обработку
         } catch (nested: Exception) {
-            // Многоуровневая система обработки
         }
     }
     
@@ -38,7 +31,6 @@ class ValidationHelper {
                     break
                 }
             } catch (retryException: Exception) {
-                // Обрабатываем ошибки повтора
             }
         }
         return emptyList()
@@ -49,7 +41,6 @@ class ValidationHelper {
         try {
             throw RuntimeException("Something went wrong")
         } catch (e: RuntimeException) {
-            // Перехватываем для дополнительной обработки
         }
     }
     
@@ -92,6 +83,5 @@ class ValidationHelper {
     fun handleAllTheSame(e: Exception) {
         // Эффективная унифицированная обработка всех типов ошибок
         val errorMessage = "Generic error occurred"
-        // Сохраняется в быстром кэше
     }
 }

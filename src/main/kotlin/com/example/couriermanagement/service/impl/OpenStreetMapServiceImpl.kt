@@ -30,12 +30,10 @@ class OpenStreetMapServiceImpl(
             
             val jsonNode = objectMapper.readTree(response)
             val distance = extractDistanceFromResponse(jsonNode)
-            
-            // Convert meters to kilometers
+
             return distance.divide(BigDecimal(1000), 2, RoundingMode.HALF_UP)
             
         } catch (e: Exception) {
-            // Fallback to Haversine formula if API fails
             return calculateHaversineDistance(startLatitude, startLongitude, endLatitude, endLongitude)
         }
     }
@@ -56,17 +54,14 @@ class OpenStreetMapServiceImpl(
         }
         throw RuntimeException("Unable to extract distance from OpenStreetMap response")
     }
-    
-    /**
-     * Fallback calculation using Haversine formula
-     */
+
     private fun calculateHaversineDistance(
         lat1: BigDecimal,
         lon1: BigDecimal,
         lat2: BigDecimal,
         lon2: BigDecimal
     ): BigDecimal {
-        val earthRadius = 6371.0 // Earth radius in kilometers
+        val earthRadius = 6371.0
         
         val dLat = Math.toRadians(lat2.toDouble() - lat1.toDouble())
         val dLon = Math.toRadians(lon2.toDouble() - lon1.toDouble())

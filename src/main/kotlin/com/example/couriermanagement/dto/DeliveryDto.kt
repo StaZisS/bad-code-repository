@@ -26,7 +26,6 @@ data class DeliveryDto(
 ) {
     companion object {
         fun from(delivery: Delivery): DeliveryDto {
-            // Calculate totals from all delivery point products
             val allProducts = delivery.deliveryPoints.flatMap { it.deliveryPointProducts }
             val totalWeight = allProducts.sumOf { 
                 it.product.weight * BigDecimal(it.quantity) 
@@ -34,8 +33,7 @@ data class DeliveryDto(
             val totalVolume = allProducts.sumOf { 
                 it.product.getVolume() * BigDecimal(it.quantity) 
             }
-            
-            // Check if delivery can be edited (more than 3 days before delivery date)
+
             val canEdit = delivery.deliveryDate.isAfter(LocalDate.now().plusDays(3))
             
             return DeliveryDto(
