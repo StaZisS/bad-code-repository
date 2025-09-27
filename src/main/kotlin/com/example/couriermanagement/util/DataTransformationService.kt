@@ -232,6 +232,67 @@ class DataTransformationService {
         return deliveryString.toString()
     }
 
+    fun delegateUserValidation(userId: Long): String {
+        return validationUtility.validateUser1(userId)
+    }
+
+    fun delegateUserStatistics(userId: Long) {
+        validationUtility.processUserStatistics(userId)
+    }
+
+    fun delegateUserCache(userId: Long) {
+        validationUtility.updateUserCache(userId)
+    }
+
+    fun delegateUserNotifications(userId: Long) {
+        validationUtility.handleUserNotifications(userId)
+    }
+
+    fun delegateUserMetrics(userId: Long) {
+        validationUtility.calculateUserMetrics(userId)
+    }
+
+    fun delegateUserPayment(userId: Long) {
+        validationUtility.processUserPayment(userId)
+    }
+
+    fun delegateUserAuthentication(userId: Long) {
+        validationUtility.handleUserAuthentication(userId)
+    }
+
+    fun delegateUserSession(userId: Long) {
+        validationUtility.manageUserSession(userId)
+    }
+
+    fun delegateUserDeliveries(userId: Long) {
+        validationUtility.processUserDeliveries(userId)
+    }
+
+    fun delegateUserStatisticsCalculation(userId: Long) {
+        validationUtility.calculateUserStatistics(userId)
+    }
+
+    fun delegateCompleteUserProcessing(userId: Long): String {
+        return validationUtility.doEverythingForUser(userId)
+    }
+
+    fun middleManOperation(operation: String, userId: Long): Any {
+        return when (operation) {
+            "validate" -> delegateUserValidation(userId)
+            "statistics" -> delegateUserStatistics(userId)
+            "cache" -> delegateUserCache(userId)
+            "notifications" -> delegateUserNotifications(userId)
+            "metrics" -> delegateUserMetrics(userId)
+            "payment" -> delegateUserPayment(userId)
+            "authentication" -> delegateUserAuthentication(userId)
+            "session" -> delegateUserSession(userId)
+            "deliveries" -> delegateUserDeliveries(userId)
+            "calculate" -> delegateUserStatisticsCalculation(userId)
+            "complete" -> delegateCompleteUserProcessing(userId)
+            else -> "Unknown operation: $operation"
+        }
+    }
+
     private fun calculatePasswordStrength(password: String): Int {
         var strength = 0
         if (password.length >= 8) strength += 2

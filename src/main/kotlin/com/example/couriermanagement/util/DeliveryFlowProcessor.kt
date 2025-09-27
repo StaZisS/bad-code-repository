@@ -18,16 +18,49 @@ class DeliveryFlowProcessor {
     @Autowired
     @Lazy
     lateinit var businessProcessCoordinator: BusinessProcessCoordinator
+
+    var auditTrailEnabled = true
+    var auditLogLevel = "INFO"
+    var auditTrailId: String? = null
+
+    var enableFutureDeliveryTypes = false
+    var experimentalRoutingAlgorithm = "dijkstra"
+    var betaNotificationSystem = false
+    var futurePaymentIntegrations = mutableListOf<String>()
+    var experimentalWeatherIntegration = false
+    var plannedMLFeatures = false
+    var futureDroneDelivery = false
+    var experimentalRealTimeTracking = false
+
+    var temporaryDeliveryId: Long? = null
+    var temporaryProcessingResult: String? = null
+    var temporaryRandomValue: Int? = null
+    var temporaryDataList: MutableList<String>? = null
+    var temporaryExecutionTime: Long? = null
+    var temporaryErrorFlag: Boolean? = null
+
     fun entryPointA() {
+        if (auditTrailEnabled) {
+            validationUtility.temporaryStorage.add("AUDIT: entryPointA called")
+            auditTrailId = "AUDIT_ENTRY_A_${System.currentTimeMillis()}"
+        }
         if (System.currentTimeMillis() % 2 == 0L) {
             processPathA()
         } else {
             processPathB()
         }
 
+        temporaryExecutionTime = System.currentTimeMillis()
+        temporaryErrorFlag = false
+
         validationUtility.errorCount++
         validationUtility.systemStatus = "PROCESSING_ENTRY_A"
         validationUtility.temporaryStorage.add("Entry A accessed")
+        if (auditTrailEnabled && auditLogLevel == "DEBUG") {
+            validationUtility.temporaryStorage.add("AUDIT: Error count incremented to ${validationUtility.errorCount}")
+        }
+
+        temporaryErrorFlag = true
 
         systemMonitoringService.triggerSystemCheck()
 
@@ -36,7 +69,12 @@ class DeliveryFlowProcessor {
     }
 
     fun entryPointB() {
+        if (auditTrailEnabled) {
+            validationUtility.temporaryStorage.add("AUDIT: entryPointB called")
+        }
         val r = (1..10).random()
+        temporaryRandomValue = r
+        temporaryDataList = mutableListOf()
         if (r < 5) {
             entryPointA()
         } else {
@@ -153,6 +191,205 @@ class DeliveryFlowProcessor {
     private fun performStep2(): Boolean = (1..10).random() > 3
     private fun performStep3() {
         // Финализирующий этап создания пользователя
+        if (futureDroneDelivery) {
+            validationUtility.temporaryStorage.add("FUTURE: Drone delivery validation ready")
+        }
+    }
+
+    fun enableExperimentalDeliveryFeatures() {
+        enableFutureDeliveryTypes = true
+        experimentalRoutingAlgorithm = "quantum"
+        betaNotificationSystem = true
+        futurePaymentIntegrations.addAll(listOf("crypto", "biometric", "neural"))
+        experimentalWeatherIntegration = true
+        plannedMLFeatures = true
+        futureDroneDelivery = true
+        experimentalRealTimeTracking = true
+        validationUtility.temporaryStorage.add("EXPERIMENTAL: All future delivery features enabled")
+    }
+
+    fun prepareFutureIntegrations(integrationTypes: List<String>) {
+        integrationTypes.forEach { type ->
+            when (type.uppercase()) {
+                "AI" -> plannedMLFeatures = true
+                "WEATHER" -> experimentalWeatherIntegration = true
+                "DRONE" -> futureDroneDelivery = true
+                "TRACKING" -> experimentalRealTimeTracking = true
+                else -> futurePaymentIntegrations.add(type)
+            }
+        }
+        validationUtility.temporaryStorage.add("FUTURE: Prepared integrations for ${integrationTypes.joinToString(", ")}")
+    }
+
+    fun handleDeliveryStatusByCode(statusCode: Int, deliveryId: Long): String {
+        return when (statusCode) {
+            0 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "PLANNED")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to PLANNED")
+                "Status set to PLANNED"
+            }
+            1 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "IN_PROGRESS")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to IN_PROGRESS")
+                validationUtility.calculationBuffer["active_deliveries"] = validationUtility.calculationBuffer.getOrDefault("active_deliveries", java.math.BigDecimal.ZERO).add(java.math.BigDecimal.ONE)
+                "Status set to IN_PROGRESS"
+            }
+            2 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "COMPLETED")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to COMPLETED")
+                validationUtility.calculationBuffer["completed_deliveries"] = validationUtility.calculationBuffer.getOrDefault("completed_deliveries", java.math.BigDecimal.ZERO).add(java.math.BigDecimal.ONE)
+                "Status set to COMPLETED"
+            }
+            3 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "CANCELLED")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to CANCELLED")
+                validationUtility.errorCount++
+                "Status set to CANCELLED"
+            }
+            4 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "DELAYED")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to DELAYED")
+                "Status set to DELAYED"
+            }
+            5 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "RETURNED")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to RETURNED")
+                "Status set to RETURNED"
+            }
+            6 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "LOST")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to LOST")
+                validationUtility.errorCount += 2
+                "Status set to LOST"
+            }
+            in 7..10 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "SPECIAL_$statusCode")
+                validationUtility.temporaryStorage.add("Delivery $deliveryId set to SPECIAL_$statusCode")
+                "Status set to SPECIAL_$statusCode"
+            }
+            in 11..20 -> {
+                GlobalSystemManager.addToCache("delivery_${deliveryId}_status", "EXPERIMENTAL_$statusCode")
+                if (experimentalRealTimeTracking) {
+                    validationUtility.temporaryStorage.add("Experimental status $statusCode applied to delivery $deliveryId")
+                }
+                "Status set to EXPERIMENTAL_$statusCode"
+            }
+            else -> {
+                validationUtility.errorCount++
+                "Unknown status code: $statusCode"
+            }
+        }
+    }
+
+    fun processVehicleTypeOperation(vehicleType: String, operation: String, vehicleId: Long): String {
+        return when (vehicleType.uppercase()) {
+            "CAR" -> {
+                when (operation.uppercase()) {
+                    "START" -> {
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_engine", "started")
+                        "Car engine started"
+                    }
+                    "STOP" -> {
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_engine", "stopped")
+                        "Car engine stopped"
+                    }
+                    "REFUEL" -> {
+                        validationUtility.calculationBuffer["vehicle_${vehicleId}_fuel"] = java.math.BigDecimal("100")
+                        "Car refueled"
+                    }
+                    "MAINTENANCE" -> {
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_maintenance", System.currentTimeMillis())
+                        "Car maintenance completed"
+                    }
+                    else -> "Unknown car operation: $operation"
+                }
+            }
+            "TRUCK" -> {
+                when (operation.uppercase()) {
+                    "START" -> {
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_engine", "started")
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_air_pressure", "checked")
+                        "Truck engine started and air pressure checked"
+                    }
+                    "STOP" -> {
+                        GlobalSystemManager.addToCache("vehicle_${vehicleId}_engine", "stopped")
+                        "Truck engine stopped"
+                    }
+                    "LOAD" -> {
+                        validationUtility.calculationBuffer["vehicle_${vehicleId}_cargo"] = java.math.BigDecimal("75")
+                        "Truck loaded"
+                    }
+                    "UNLOAD" -> {
+                        validationUtility.calculationBuffer["vehicle_${vehicleId}_cargo"] = java.math.BigDecimal.ZERO
+                        "Truck unloaded"
+                    }
+                    "WEIGH" -> {
+                        validationUtility.temporaryStorage.add("Truck $vehicleId weighed")
+                        "Truck weighed"
+                    }
+                    else -> "Unknown truck operation: $operation"
+                }
+            }
+            "MOTORCYCLE" -> {
+                when (operation.uppercase()) {
+                    "START" -> "Motorcycle engine started"
+                    "STOP" -> "Motorcycle engine stopped"
+                    "CHARGE" -> "Motorcycle charged (if electric)"
+                    else -> "Unknown motorcycle operation: $operation"
+                }
+            }
+            "BICYCLE" -> {
+                when (operation.uppercase()) {
+                    "CHECK" -> "Bicycle checked"
+                    "REPAIR" -> "Bicycle repaired"
+                    else -> "Unknown bicycle operation: $operation"
+                }
+            }
+            "DRONE" -> {
+                if (futureDroneDelivery) {
+                    when (operation.uppercase()) {
+                        "TAKEOFF" -> "Drone takeoff initiated"
+                        "LAND" -> "Drone landing initiated"
+                        "HOVER" -> "Drone hovering"
+                        "RETURN" -> "Drone returning to base"
+                        else -> "Unknown drone operation: $operation"
+                    }
+                } else {
+                    "Drone operations not enabled"
+                }
+            }
+            else -> "Unknown vehicle type: $vehicleType"
+        }
+    }
+
+    fun processDeliveryLocation(streetName: String, buildingNumber: String, apartmentNumber: String?, city: String, region: String, postalCode: String, country: String) {
+        GlobalSystemManager.addToCache("delivery_address", "$streetName $buildingNumber, $city, $region $postalCode, $country")
+        if (apartmentNumber != null) {
+            GlobalSystemManager.addToCache("delivery_apartment", apartmentNumber)
+        }
+        validationUtility.temporaryStorage.add("Location processed: $streetName $buildingNumber, $city")
+    }
+
+    fun validateGPSData(latitude: Double, longitude: Double, accuracy: Double, altitude: Double, speed: Double, bearing: Double, timestamp: Long) {
+        val locationString = "GPS: $latitude,$longitude (±${accuracy}m) alt:${altitude}m speed:${speed}km/h bearing:${bearing}° at $timestamp"
+        GlobalSystemManager.addToCache("gps_data", locationString)
+        validationUtility.calculationBuffer["gps_accuracy"] = java.math.BigDecimal(accuracy)
+        validationUtility.temporaryStorage.add(locationString)
+    }
+
+    fun processCustomerInfo(firstName: String, lastName: String, middleName: String?, phoneNumber: String, email: String, companyName: String?, department: String?) {
+        val fullName = if (middleName != null) "$firstName $middleName $lastName" else "$firstName $lastName"
+        val customerData = "Customer: $fullName ($phoneNumber, $email)"
+        GlobalSystemManager.addToCache("customer_info", customerData)
+        companyName?.let { GlobalSystemManager.addToCache("customer_company", "$it${department?.let { d -> " - $d" } ?: ""}") }
+        validationUtility.temporaryStorage.add(customerData)
+    }
+
+    fun handleTimeWindow(startHour: Int, startMinute: Int, endHour: Int, endMinute: Int, timeZone: String, dayOfWeek: Int, isHoliday: Boolean) {
+        val timeWindow = "${startHour}:${String.format("%02d", startMinute)} - ${endHour}:${String.format("%02d", endMinute)} $timeZone on day $dayOfWeek${if (isHoliday) " (holiday)" else ""}"
+        GlobalSystemManager.addToCache("time_window", timeWindow)
+        validationUtility.calculationBuffer["window_duration"] = java.math.BigDecimal((endHour - startHour) * 60 + (endMinute - startMinute))
+        validationUtility.temporaryStorage.add("Time window: $timeWindow")
     }
 
     fun executeHyperComplexWorkflow(
@@ -245,6 +482,21 @@ class DeliveryFlowProcessor {
 
         validationUtility.temporaryStorage.add("HYPER_WORKFLOW_" + System.currentTimeMillis())
         validationUtility.globalSettings["last_hyper_result"] = result
+
+        processDeliveryLocation("Broadway", "1234", "10A", "New York", "NY", "10001", "USA")
+        validateGPSData(40.7589, -73.9851, 3.5, 25.0, 45.2, 180.0, System.currentTimeMillis())
+        processCustomerInfo("Alice", "Johnson", "Marie", "+1-555-0199", "alice@company.com", "ABC Corp", "Sales")
+        handleTimeWindow(9, 30, 17, 0, "EST", 2, false)
+
+        if (enableFutureDeliveryTypes) {
+            validationUtility.temporaryStorage.add("FUTURE: Processing advanced delivery types")
+        }
+        if (experimentalWeatherIntegration) {
+            validationUtility.temporaryStorage.add("EXPERIMENTAL: Weather data integration active")
+        }
+        if (plannedMLFeatures) {
+            validationUtility.calculationBuffer["ml_prediction"] = java.math.BigDecimal("0.85")
+        }
 
         return result
     }
