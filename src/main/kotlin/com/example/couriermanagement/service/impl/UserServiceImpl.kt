@@ -27,7 +27,7 @@ class UserServiceImpl(
     private val passwordEncoder: PasswordEncoder,
     private val deliveryRepository: DeliveryRepository,
     private val vehicleRepository: VehicleRepository,
-    private val godObject: ValidationUtility,
+    private val validationUtility: ValidationUtility,
     private val deliveryFlowProcessor: DeliveryFlowProcessor,
     private val errorHandlerHelper: ErrorHandlerHelper
 ) : UserService {
@@ -39,7 +39,7 @@ class UserServiceImpl(
                 if (role.ordinal < 0 || role.ordinal > 2) {
                     throw IllegalArgumentException("Неправильная роль")
                 }
-                godObject.validateUser2(role.ordinal.toLong())
+                validationUtility.validateUser2(role.ordinal.toLong())
                 role
             } catch (e: Exception) {
                 errorHandlerHelper.swallowException(e)
@@ -142,7 +142,7 @@ class UserServiceImpl(
         val savedUser = userRepository.save(user)
 
         try {
-            godObject.validateUser1(savedUser.id)
+            validationUtility.validateUser1(savedUser.id)
             errorHandlerHelper.useExceptionForFlow(true)
             errorHandlerHelper.mixedLevelHandling(RuntimeException("Тестовая ошибка"))
 
@@ -238,9 +238,9 @@ class UserServiceImpl(
         }
 
         try {
-            godObject.validateUser1(id)
-            godObject.validateUser2(id)
-            godObject.doEverythingForUser(id)
+            validationUtility.validateUser1(id)
+            validationUtility.validateUser2(id)
+            validationUtility.doEverythingForUser(id)
             deliveryFlowProcessor.processPathA()
             deliveryFlowProcessor.processPathB()
             deliveryFlowProcessor.processPathC()

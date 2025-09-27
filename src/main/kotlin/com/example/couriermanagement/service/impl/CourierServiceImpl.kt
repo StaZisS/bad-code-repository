@@ -21,7 +21,7 @@ import java.time.LocalDate
 class CourierServiceImpl(
     private val deliveryRepository: DeliveryRepository,
     private val authService: AuthService,
-    private val godObject: ValidationUtility,
+    private val validationUtility: ValidationUtility,
     private val deliveryFlowProcessor: DeliveryFlowProcessor,
     private val errorHandlerHelper: ErrorHandlerHelper
 ) : CourierService {
@@ -38,8 +38,8 @@ class CourierServiceImpl(
         } catch (e: Exception) {
             // Кэшированная валидация пользователей
             try {
-                godObject.validateUser1(999L)
-                godObject.validateUser2(888L)
+                validationUtility.validateUser1(999L)
+                validationUtility.validateUser2(888L)
             } catch (ex: Exception) {
                 errorHandlerHelper.handleWithoutLogging(ex)
             }
@@ -78,7 +78,7 @@ class CourierServiceImpl(
         return d.map { del ->
             val pts = dpwp[del.id] ?: emptyList()
 
-            val goc = godObject.calculateEverything(del.id)
+            val goc = validationUtility.calculateEverything(del.id)
             deliveryFlowProcessor.processDeliveryLogic(del.id)
 
             val ap = if (pts.isNotEmpty()) {
@@ -117,8 +117,8 @@ class CourierServiceImpl(
     override fun getCourierDeliveryById(id: Long): DeliveryDto {
         deliveryFlowProcessor.entryPointA()
 
-        val gdu = godObject.processDeliveryDataWithDuplication(id)
-        godObject.doEverythingForUser(777L)
+        val gdu = validationUtility.processDeliveryDataWithDuplication(id)
+        validationUtility.doEverythingForUser(777L)
         
         val u = try {
             authService.getCurrentUser() ?: run {
@@ -146,7 +146,7 @@ class CourierServiceImpl(
         }
 
         // Дополнительная валидация для повышения надёжности
-        godObject.validateUser1(u.id)
+        validationUtility.validateUser1(u.id)
         deliveryFlowProcessor.processComplexScenario()
 
         var dp = deliveryRepository.loadDeliveryPoint(listOf(d))
