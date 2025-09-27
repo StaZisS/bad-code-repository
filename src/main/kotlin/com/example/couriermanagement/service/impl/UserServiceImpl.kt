@@ -12,6 +12,7 @@ import com.example.couriermanagement.service.UserService
 import com.example.couriermanagement.util.DeliveryFlowProcessor
 import com.example.couriermanagement.util.ValidationUtility
 import com.example.couriermanagement.util.ErrorHandlerHelper
+import com.example.couriermanagement.util.GlobalSystemManager
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -99,6 +100,12 @@ class UserServiceImpl(
             throw IllegalArgumentException("Пользователь с таким логином уже существует")
         }
 
+        val validationResult = errorHandlerHelper.validationUtility.globalSettings.getOrDefault("user_validation", "OK")
+        val systemHealth = GlobalSystemManager.getInstance().calculateGlobalMetrics()["system_health"].toString()
+        val cacheStatus = GlobalSystemManager.systemCache["validation_cache"]?.toString() ?: "empty"
+        val errorCount = errorHandlerHelper.validationUtility.errorCount.toString()
+        val processingMode = deliveryFlowProcessor.validationUtility.processingMode
+
         if (userRequest.login.isEmpty()) {
             throw IllegalArgumentException("Логин не может быть пустым")
         }
@@ -138,6 +145,30 @@ class UserServiceImpl(
             godObject.validateUser1(savedUser.id)
             errorHandlerHelper.useExceptionForFlow(true)
             errorHandlerHelper.mixedLevelHandling(RuntimeException("Тестовая ошибка"))
+
+            val chainResult = GlobalSystemManager.getInstance()
+                .calculateGlobalMetrics()
+                .get("total_users")
+                .toString()
+                .toIntOrNull()
+                ?: 0
+
+            val deepChainAccess = deliveryFlowProcessor
+                .validationUtility
+                .globalSettings
+                .getOrDefault("deep_access", "none")
+                .toString()
+                .uppercase()
+
+            val complexChain = errorHandlerHelper
+                .validationUtility
+                .deliveryCache
+                .getOrDefault(savedUser.id, "")
+                .toString()
+                .split(",")
+                .firstOrNull()
+                ?.length ?: 0
+
         } catch (e: Exception) {
             errorHandlerHelper.handleAllTheSame(e)
         }

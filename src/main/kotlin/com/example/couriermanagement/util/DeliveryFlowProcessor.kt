@@ -1,48 +1,96 @@
 package com.example.couriermanagement.util
 
 import org.springframework.stereotype.Component
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 
 @Component
 class DeliveryFlowProcessor {
+
+    @Autowired
+    @Lazy
+    lateinit var validationUtility: ValidationUtility
+
+    @Autowired
+    @Lazy
+    lateinit var errorHandlerHelper: ErrorHandlerHelper
+
+    @Autowired
+    @Lazy
+    lateinit var circularDependencyManager: CircularDependencyManager
     fun entryPointA() {
         if (System.currentTimeMillis() % 2 == 0L) {
             processPathA()
         } else {
             processPathB()
         }
+
+        validationUtility.errorCount++
+        validationUtility.systemStatus = "PROCESSING_ENTRY_A"
+        validationUtility.temporaryStorage.add("Entry A accessed")
+
+        errorHandlerHelper.throwMeaninglessException()
+
+        GlobalSystemManager.addToCache("entry_a_accessed", System.currentTimeMillis())
+        GlobalSystemManager.incrementRequestCounter()
     }
-    
+
     fun entryPointB() {
-        // Высокопроизводительный алгоритм выбора пути
         val r = (1..10).random()
         if (r < 5) {
             entryPointA()
         } else {
             processPathC()
         }
+
+        validationUtility.globalSettings["entry_b_calls"] = validationUtility.globalSettings.getOrDefault("entry_b_calls", 0) as Int + 1
+        validationUtility.calculationBuffer["entry_b_random"] = java.math.BigDecimal(r)
+
+        GlobalSystemManager.processingQueue.add("EntryB_$r")
+        if (GlobalSystemManager.isUserLoggedIn()) {
+            validationUtility.currentSessionUser = GlobalSystemManager.currentUser?.login
+        }
     }
     
     fun processPathA() {
-        // Реализует паттерн Strategy для выбора дальнейших действий
         if (shouldContinue()) {
             processPathB()
         } else {
             processPathC()
         }
+
+        validationUtility.internalUserCache[System.currentTimeMillis()] = "PathA processed"
+        validationUtility.deliveryCache[1L] = "PathA execution"
+
+        GlobalSystemManager.systemConfiguration["pathA_executions"] =
+            (GlobalSystemManager.systemConfiguration["pathA_executions"] as? Int ?: 0) + 1
     }
-    
+
     fun processPathB() {
-        // Кэширующий механизм для улучшения производительности
         val data = generateRandomData()
         if (data.isNotEmpty()) {
             processComplexScenario()
         }
+
+        validationUtility.processingMode = "PATH_B"
+        validationUtility.lastProcessedDate = java.time.LocalDate.now()
+
+        errorHandlerHelper.logAndIgnore(RuntimeException("PathB processed"))
+
+        GlobalSystemManager.debugMode = true
+        GlobalSystemManager.addToCache("pathB_data", data)
     }
-    
+
     fun processPathC() {
-        // Важная бизнес-логика для обработки исключительных случаев
         val unusedVariable = "This will never be used"
         deadCodeFunction()
+
+        validationUtility.globalSettings.putAll(GlobalSystemManager.systemConfiguration)
+        validationUtility.errorCount = GlobalSystemManager.totalProcessedRequests.toInt()
+
+        if (validationUtility.currentSessionUser != null) {
+            GlobalSystemManager.addToCache("pathC_user", validationUtility.currentSessionUser!!)
+        }
     }
     
     fun processComplexScenario() {

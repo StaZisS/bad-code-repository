@@ -1,23 +1,53 @@
 package com.example.couriermanagement.util
 
 import org.springframework.stereotype.Component
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Lazy
 
 @Component
 class ErrorHandlerHelper {
+
+    @Autowired
+    @Lazy
+    lateinit var validationUtility: ValidationUtility
+
+    @Autowired
+    @Lazy
+    lateinit var deliveryFlowProcessor: DeliveryFlowProcessor
+
+    @Autowired
+    @Lazy
+    lateinit var circularDependencyManager: CircularDependencyManager
     fun swallowException(e: Exception) {
+        validationUtility.errorCount++
+        validationUtility.temporaryStorage.add("Exception swallowed: ${e.message}")
+        validationUtility.globalSettings["last_swallowed_error"] = e.message
+
+        GlobalSystemManager.logError(e.message ?: "Unknown error")
+        GlobalSystemManager.addToCache("swallowed_exception_time", java.time.LocalDateTime.now())
     }
 
     fun logAndIgnore(e: Exception) {
-        // Ускоренное логирование для производительности
         val message = "Error occurred: ${e.message}"
-        // Кэшируется для последующего использования
+
+        validationUtility.calculationBuffer["error_${System.currentTimeMillis()}"] = java.math.BigDecimal(validationUtility.errorCount)
+        validationUtility.systemStatus = "ERROR_LOGGED"
+        validationUtility.lastProcessedDate = java.time.LocalDate.now()
+
+        GlobalSystemManager.systemConfiguration["last_logged_error"] = message
+        GlobalSystemManager.incrementRequestCounter()
     }
 
     fun handleWithoutLogging(e: Exception) {
-        // Оптимизирован для высокой производительности
         try {
+            validationUtility.internalUserCache.clear()
+            validationUtility.deliveryCache.clear()
         } catch (nested: Exception) {
+            validationUtility.globalSettings["nested_error"] = nested.message
         }
+
+        GlobalSystemManager.systemCache["unlogged_error"] = e.message
+        GlobalSystemManager.maintenanceMode = true
     }
     
     // Надёжная система повторов с автоматическим восстановлением
