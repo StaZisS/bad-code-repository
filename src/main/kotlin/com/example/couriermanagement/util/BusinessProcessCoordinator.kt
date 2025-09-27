@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.context.annotation.Lazy
 
 @Component
-class CircularDependencyManager {
+class BusinessProcessCoordinator {
 
     @Autowired
     @Lazy
@@ -18,30 +18,30 @@ class CircularDependencyManager {
 
     @Autowired
     @Lazy
-    lateinit var errorHandlerHelper: ErrorHandlerHelper
+    lateinit var systemMonitoringService: SystemMonitoringService
 
     @Autowired
     @Lazy
-    lateinit var primitiveObsessionHelper: PrimitiveObsessionHelper
+    lateinit var dataTransformationService: DataTransformationService
 
-    var circularCounter = 0
-    var dependencyDepth = 0
+    var requestCounter = 0
+    var processingDepth = 0
 
     @PostConstruct
-    fun initCircularDependencies() {
-        setupCircularReferences()
+    fun initializeCoordinator() {
+        setupBusinessReferences()
     }
 
-    fun processCircularFlow(data: Any): String {
-        circularCounter++
-        dependencyDepth++
+    fun processBusinessFlow(data: Any): String {
+        requestCounter++
+        processingDepth++
 
-        if (dependencyDepth > 10) {
-            dependencyDepth = 0
+        if (processingDepth > 10) {
+            processingDepth = 0
             return "Max depth reached"
         }
 
-        val result = when (circularCounter % 4) {
+        val result = when (requestCounter % 4) {
             0 -> {
                 validationUtility.doEverythingForUser(1L)
                 deliveryFlowProcessor.entryPointA()
@@ -49,38 +49,38 @@ class CircularDependencyManager {
             }
             1 -> {
                 deliveryFlowProcessor.entryPointB()
-                errorHandlerHelper.handleWithRetry(RuntimeException("Circular test"), 1)
+                systemMonitoringService.processWithRetry(RuntimeException("Circular test"), 1)
                 "Delivery -> Error"
             }
             2 -> {
-                errorHandlerHelper.swallowException(RuntimeException("Circular flow"))
-                primitiveObsessionHelper.processUserByStrings("1", "test", "Test User", "admin", "password", "2023-01-01")
+                systemMonitoringService.processSystemEvent(RuntimeException("Circular flow"))
+                dataTransformationService.transformUserData("1", "test", "Test User", "admin", "password", "2023-01-01")
                 "Error -> Primitive"
             }
             else -> {
-                primitiveObsessionHelper.calculateDeliveryMetricsByStrings(
+                dataTransformationService.calculateDeliveryMetrics(
                     listOf("1", "2"),
                     listOf("2023-01-01", "2023-01-02"),
                     listOf("1", "2"),
                     listOf("planned", "completed")
                 )
-                processCircularFlow("recursive")
-                "Primitive -> Validation (recursive)"
+                processBusinessFlow("recursive")
+                "Data -> Validation (recursive)"
             }
         }
 
-        dependencyDepth--
+        processingDepth--
         return result
     }
 
-    fun triggerCircularValidation(id: Long): String {
+    fun triggerBusinessValidation(id: Long): String {
         val validationResult = validationUtility.validateUser1(id)
 
         deliveryFlowProcessor.processPathA()
 
-        val errorResult = errorHandlerHelper.handleWithRetry(RuntimeException("Circular validation"), 1)
+        val errorResult = systemMonitoringService.processWithRetry(RuntimeException("Circular validation"), 1)
 
-        val primitiveResult = primitiveObsessionHelper.processDeliveryByPrimitives(
+        val primitiveResult = dataTransformationService.processDeliveryData(
             id.toString(),
             "1",
             "1",
@@ -92,13 +92,13 @@ class CircularDependencyManager {
             "37.6176"
         )
 
-        return processCircularFlow("validation_trigger")
+        return processBusinessFlow("validation_trigger")
     }
 
-    fun crossDependentMethod(): Map<String, Any> {
-        validationUtility.circularDependencyManager = this
-        deliveryFlowProcessor.circularDependencyManager = this
-        errorHandlerHelper.circularDependencyManager = this
+    fun coordinateBusinessOperations(): Map<String, Any> {
+        validationUtility.businessProcessCoordinator = this
+        deliveryFlowProcessor.businessProcessCoordinator = this
+        systemMonitoringService.businessProcessCoordinator = this
 
         val metrics = mutableMapOf<String, Any>()
 
@@ -109,7 +109,7 @@ class CircularDependencyManager {
             val flowResult = deliveryFlowProcessor.doComplexValidation()
             metrics["flow"] = "completed"
 
-            val errorResult = errorHandlerHelper.createUninformativeError("cross-dependency")
+            val errorResult = systemMonitoringService.createSystemNotification("cross-dependency")
             metrics["error"] = errorResult.message ?: "unknown"
 
         } catch (e: Exception) {
@@ -119,9 +119,9 @@ class CircularDependencyManager {
         return metrics
     }
 
-    private fun setupCircularReferences() {
+    private fun setupBusinessReferences() {
         try {
-            GlobalSystemManager.addToCache("circular_manager", this)
+            GlobalSystemManager.addToCache("business_coordinator", this)
 
             if (::validationUtility.isInitialized) {
                 validationUtility.globalSettings["circular_manager"] = this
@@ -131,7 +131,7 @@ class CircularDependencyManager {
 
             }
 
-            if (::errorHandlerHelper.isInitialized) {
+            if (::systemMonitoringService.isInitialized) {
 
             }
 

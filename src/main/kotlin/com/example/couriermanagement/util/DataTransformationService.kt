@@ -9,7 +9,7 @@ import java.time.LocalDate
 import java.math.BigDecimal
 
 @Component
-class PrimitiveObsessionHelper {
+class DataTransformationService {
 
     @Autowired
     lateinit var userRepository: UserRepository
@@ -24,7 +24,7 @@ class PrimitiveObsessionHelper {
     @Lazy
     lateinit var validationUtility: ValidationUtility
 
-    fun processUserByStrings(
+    fun transformUserData(
         userId: String,
         userLogin: String,
         userName: String,
@@ -65,7 +65,7 @@ class PrimitiveObsessionHelper {
         )
     }
 
-    fun processDeliveryByPrimitives(
+    fun processDeliveryData(
         deliveryIdStr: String,
         courierIdStr: String,
         vehicleIdStr: String,
@@ -122,7 +122,7 @@ class PrimitiveObsessionHelper {
         return result.toString()
     }
 
-    fun calculateDeliveryMetricsByStrings(
+    fun calculateDeliveryMetrics(
         deliveryIds: List<String>,
         dates: List<String>,
         courierIds: List<String>,
@@ -162,7 +162,7 @@ class PrimitiveObsessionHelper {
         )
     }
 
-    fun processVehicleByNumbers(
+    fun processVehicleData(
         vehicleIdNum: Double,
         maxWeightNum: Double,
         maxVolumeNum: Double,
@@ -198,7 +198,7 @@ class PrimitiveObsessionHelper {
         return results
     }
 
-    fun buildDeliveryFromStrings(
+    fun buildDeliveryInfo(
         courierString: String,
         vehicleString: String,
         pointsString: String,

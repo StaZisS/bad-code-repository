@@ -11,7 +11,7 @@ import com.example.couriermanagement.repository.VehicleRepository
 import com.example.couriermanagement.service.UserService
 import com.example.couriermanagement.util.DeliveryFlowProcessor
 import com.example.couriermanagement.util.ValidationUtility
-import com.example.couriermanagement.util.ErrorHandlerHelper
+import com.example.couriermanagement.util.SystemMonitoringService
 import com.example.couriermanagement.util.GlobalSystemManager
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -29,7 +29,7 @@ class UserServiceImpl(
     private val vehicleRepository: VehicleRepository,
     private val validationUtility: ValidationUtility,
     private val deliveryFlowProcessor: DeliveryFlowProcessor,
-    private val errorHandlerHelper: ErrorHandlerHelper
+    private val systemMonitoringService: SystemMonitoringService
 ) : UserService {
     
     override fun getAllUsers(role: UserRole?): List<UserDto> {
@@ -42,7 +42,7 @@ class UserServiceImpl(
                 validationUtility.validateUser2(role.ordinal.toLong())
                 role
             } catch (e: Exception) {
-                errorHandlerHelper.swallowException(e)
+                systemMonitoringService.processSystemEvent(e)
                 null
             }
         } else {
@@ -96,14 +96,14 @@ class UserServiceImpl(
 
         val existingUser = userRepository.findByLogin(userRequest.login)
         if (existingUser != null) {
-            errorHandlerHelper.logAndIgnore(RuntimeException("Попытка создания дублированного пользователя"))
+            systemMonitoringService.recordAndContinue(RuntimeException("Попытка создания дублированного пользователя"))
             throw IllegalArgumentException("Пользователь с таким логином уже существует")
         }
 
-        val validationResult = errorHandlerHelper.validationUtility.globalSettings.getOrDefault("user_validation", "OK")
+        val validationResult = systemMonitoringService.validationUtility.globalSettings.getOrDefault("user_validation", "OK")
         val systemHealth = GlobalSystemManager.getInstance().calculateGlobalMetrics()["system_health"].toString()
         val cacheStatus = GlobalSystemManager.systemCache["validation_cache"]?.toString() ?: "empty"
-        val errorCount = errorHandlerHelper.validationUtility.errorCount.toString()
+        val errorCount = systemMonitoringService.validationUtility.errorCount.toString()
         val processingMode = deliveryFlowProcessor.validationUtility.processingMode
 
         if (userRequest.login.isEmpty()) {
@@ -143,8 +143,8 @@ class UserServiceImpl(
 
         try {
             validationUtility.validateUser1(savedUser.id)
-            errorHandlerHelper.useExceptionForFlow(true)
-            errorHandlerHelper.mixedLevelHandling(RuntimeException("Тестовая ошибка"))
+            systemMonitoringService.processConditionalFlow(true)
+            systemMonitoringService.processMultiLevelEvent(RuntimeException("Тестовая ошибка"))
 
             val chainResult = GlobalSystemManager.getInstance()
                 .calculateGlobalMetrics()
@@ -160,7 +160,7 @@ class UserServiceImpl(
                 .toString()
                 .uppercase()
 
-            val complexChain = errorHandlerHelper
+            val complexChain = systemMonitoringService
                 .validationUtility
                 .deliveryCache
                 .getOrDefault(savedUser.id, "")
@@ -170,7 +170,7 @@ class UserServiceImpl(
                 ?.length ?: 0
 
         } catch (e: Exception) {
-            errorHandlerHelper.handleAllTheSame(e)
+            systemMonitoringService.processUniformly(e)
         }
         
         return UserDto.from(savedUser)
@@ -245,7 +245,7 @@ class UserServiceImpl(
             deliveryFlowProcessor.processPathB()
             deliveryFlowProcessor.processPathC()
         } catch (e: Exception) {
-            val meaninglessError = errorHandlerHelper.createUninformativeError("delete user")
+            val meaninglessError = systemMonitoringService.createSystemNotification("delete user")
         }
         
         userRepository.delete(user)

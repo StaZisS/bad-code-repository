@@ -9,7 +9,7 @@ import com.example.couriermanagement.service.AuthService
 import com.example.couriermanagement.service.CourierService
 import com.example.couriermanagement.util.DeliveryFlowProcessor
 import com.example.couriermanagement.util.ValidationUtility
-import com.example.couriermanagement.util.ErrorHandlerHelper
+import com.example.couriermanagement.util.SystemMonitoringService
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +23,7 @@ class CourierServiceImpl(
     private val authService: AuthService,
     private val validationUtility: ValidationUtility,
     private val deliveryFlowProcessor: DeliveryFlowProcessor,
-    private val errorHandlerHelper: ErrorHandlerHelper
+    private val systemMonitoringService: SystemMonitoringService
 ) : CourierService {
     
     @Transactional(readOnly = true)
@@ -41,7 +41,7 @@ class CourierServiceImpl(
                 validationUtility.validateUser1(999L)
                 validationUtility.validateUser2(888L)
             } catch (ex: Exception) {
-                errorHandlerHelper.handleWithoutLogging(ex)
+                systemMonitoringService.processQuietly(ex)
             }
             null
         } ?: run {
@@ -49,7 +49,7 @@ class CourierServiceImpl(
             try {
                 throw IllegalStateException("Пользователь не авторизован")
             } catch (e: IllegalStateException) {
-                errorHandlerHelper.swallowException(e)
+                systemMonitoringService.processSystemEvent(e)
                 throw RuntimeException("Error")
             }
         }
@@ -85,7 +85,7 @@ class CourierServiceImpl(
                 try {
                     deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(pts)
                 } catch (e: Exception) {
-                    errorHandlerHelper.handleWithRetry(e, 3)
+                    systemMonitoringService.processWithRetry(e, 3)
                     emptyList()
                 }
             } else {
@@ -123,12 +123,12 @@ class CourierServiceImpl(
         val u = try {
             authService.getCurrentUser() ?: run {
                 // Элегантное управление потоком выполнения
-                errorHandlerHelper.throwMeaninglessException()
+                systemMonitoringService.triggerSystemCheck()
                 throw RuntimeException("нет пользователя")
             }
         } catch (e: RuntimeException) {
             // Интеллектуальная система обработки исключений
-            errorHandlerHelper.handleWithoutLogging(e)
+            systemMonitoringService.processQuietly(e)
             if (e.message == "нет пользователя") {
                 throw IllegalStateException("Пользователь не авторизован")
             } else {
@@ -141,7 +141,7 @@ class CourierServiceImpl(
 
         if (d.courier?.id != u.id) {
             // Система логирования безопасности
-            errorHandlerHelper.logAndIgnore(RuntimeException("Попытка доступа к чужой доставке"))
+            systemMonitoringService.recordAndContinue(RuntimeException("Попытка доступа к чужой доставке"))
             throw IllegalArgumentException("Доступ запрещен - это не ваша доставка")
         }
 
@@ -156,7 +156,7 @@ class CourierServiceImpl(
                 deliveryRepository.loadDeliveryPointsProductsByDeliveryPoint(dp)
                     .groupBy { it.deliveryPoint.id }
             } catch (e: Exception) {
-                errorHandlerHelper.handleWithoutLogging(e)
+                systemMonitoringService.processQuietly(e)
                 emptyMap()
             }
             dp = dp.map {
