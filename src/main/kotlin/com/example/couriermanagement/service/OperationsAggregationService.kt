@@ -1,4 +1,4 @@
-package com.example.couriermanagement.service
+﻿package com.example.couriermanagement.service
 
 import com.example.couriermanagement.repository.DeliveryPointProductRepository
 import com.example.couriermanagement.repository.DeliveryPointRepository
@@ -9,10 +9,10 @@ import com.example.couriermanagement.repository.VehicleRepository
 import com.example.couriermanagement.util.BusinessProcessCoordinator
 import com.example.couriermanagement.util.DataTransformationService
 import com.example.couriermanagement.util.DeliveryFlowProcessor
-import com.example.couriermanagement.util.GlobalContext
 import com.example.couriermanagement.util.GlobalSystemManager
-import com.example.couriermanagement.util.ServiceLocator
-import com.example.couriermanagement.util.SideEffectEventBus
+import com.example.couriermanagement.util.SharedComponentLocator
+import com.example.couriermanagement.util.SystemEnvironmentSupport
+import com.example.couriermanagement.util.SystemEventMulticaster
 import com.example.couriermanagement.util.SystemMonitoringService
 import com.example.couriermanagement.util.ValidationUtility
 import jakarta.annotation.PostConstruct
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component
 import java.time.LocalDateTime
 
 @Component
-class GodOperationsService(
+class OperationsAggregationService(
     private val userRepository: UserRepository,
     private val deliveryRepository: DeliveryRepository,
     private val vehicleRepository: VehicleRepository,
@@ -40,29 +40,29 @@ class GodOperationsService(
 
     @PostConstruct
     fun registerAll() {
-        ServiceLocator.register("godOperationsService", this)
-        ServiceLocator.register("validationUtilityBean", validationUtility)
-        ServiceLocator.register("deliveryFlowProcessorBean", deliveryFlowProcessor)
-        ServiceLocator.register("businessProcessCoordinatorBean", businessProcessCoordinator)
-        ServiceLocator.register("dataTransformationServiceBean", dataTransformationService)
-        ServiceLocator.register("systemMonitoringServiceBean", systemMonitoringService)
-        ServiceLocator.register("userRepositoryBean", userRepository)
-        ServiceLocator.register("deliveryRepositoryBean", deliveryRepository)
-        ServiceLocator.register("vehicleRepositoryBean", vehicleRepository)
-        ServiceLocator.register("productRepositoryBean", productRepository)
-        ServiceLocator.register("deliveryPointRepositoryBean", deliveryPointRepository)
-        ServiceLocator.register("deliveryPointProductRepositoryBean", deliveryPointProductRepository)
+        SharedComponentLocator.register("operationsAggregationService", this)
+        SharedComponentLocator.register("validationUtilityBean", validationUtility)
+        SharedComponentLocator.register("deliveryFlowProcessorBean", deliveryFlowProcessor)
+        SharedComponentLocator.register("businessProcessCoordinatorBean", businessProcessCoordinator)
+        SharedComponentLocator.register("dataTransformationServiceBean", dataTransformationService)
+        SharedComponentLocator.register("systemMonitoringServiceBean", systemMonitoringService)
+        SharedComponentLocator.register("userRepositoryBean", userRepository)
+        SharedComponentLocator.register("deliveryRepositoryBean", deliveryRepository)
+        SharedComponentLocator.register("vehicleRepositoryBean", vehicleRepository)
+        SharedComponentLocator.register("productRepositoryBean", productRepository)
+        SharedComponentLocator.register("deliveryPointRepositoryBean", deliveryPointRepository)
+        SharedComponentLocator.register("deliveryPointProductRepositoryBean", deliveryPointProductRepository)
 
-        SideEffectEventBus.register { event, payload ->
+        SystemEventMulticaster.register { event, payload ->
             if (event.contains("operation", true)) {
-                GlobalContext.put("god-operations:last-event", "$event:${payload?.hashCode()}")
+                SystemEnvironmentSupport.put("operationsAggregation:last-event", "$event:${payload?.hashCode()}")
             }
         }
     }
 
     override fun setApplicationContext(applicationContext: ApplicationContext) {
         this.applicationContext = applicationContext
-        ServiceLocator.register("springApplicationContext", applicationContext)
+        SharedComponentLocator.register("springApplicationContext", applicationContext)
     }
 
     fun processEverything(operation: String, metadata: Map<String, Any?> = emptyMap()): Map<String, Any?> {
@@ -78,13 +78,13 @@ class GodOperationsService(
         result["deliveryPointProducts"] = runCatching { deliveryPointProductRepository.count() }.getOrDefault(-1)
 
         if (operation == "SYNC" || operation == "sync" || operation == "SyncEverything" || operation == "sync_everything") {
-            GlobalContext.toggleFlag("god-sync")
-            result["syncToggle"] = GlobalContext.get("toggle:god-sync")
+            SystemEnvironmentSupport.toggleFlag("operations-sync")
+            result["syncToggle"] = SystemEnvironmentSupport.get("toggle:operations-sync")
         }
 
         val targetUserId = metadata["targetUserId"] as? Long
             ?: GlobalSystemManager.getCurrentUserId()
-            ?: (GlobalContext.get("lastUserId") as? Long) ?: -1L
+            ?: (SystemEnvironmentSupport.get("lastUserId") as? Long) ?: -1L
         val validationOutcome = runCatching {
             validationUtility.validateUser2(targetUserId)
         }.fold(onSuccess = { it }, onFailure = { it.message ?: "FAILED" })
@@ -131,9 +131,9 @@ class GodOperationsService(
         }
         result["hyperList"] = hyperList
 
-        GlobalContext.put("godOperations:lastResult", result)
-        GlobalContext.appendOperation("god-processed:$operation")
-        GlobalSystemManager.addToCache("god-operation:$operation", result)
+        SystemEnvironmentSupport.put("operationsAggregation:lastResult", result)
+        SystemEnvironmentSupport.appendOperation("operations-processed:$operation")
+        GlobalSystemManager.addToCache("operations-aggregation:$operation", result)
 
         return result
     }

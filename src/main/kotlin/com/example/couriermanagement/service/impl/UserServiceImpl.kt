@@ -13,11 +13,11 @@ import com.example.couriermanagement.util.DeliveryFlowProcessor
 import com.example.couriermanagement.util.ValidationUtility
 import com.example.couriermanagement.util.SystemMonitoringService
 import com.example.couriermanagement.util.GlobalSystemManager
-import com.example.couriermanagement.service.GodOperationsService
-import com.example.couriermanagement.service.base.PenultimateLayeredService
-import com.example.couriermanagement.util.GlobalContext
-import com.example.couriermanagement.util.ServiceLocator
-import com.example.couriermanagement.util.SideEffectEventBus
+import com.example.couriermanagement.service.OperationsAggregationService
+import com.example.couriermanagement.service.base.FinalServiceDelegate
+import com.example.couriermanagement.util.SystemEnvironmentSupport
+import com.example.couriermanagement.util.SharedComponentLocator
+import com.example.couriermanagement.util.SystemEventMulticaster
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -35,33 +35,33 @@ class UserServiceImpl(
     private val validationUtility: ValidationUtility,
     private val deliveryFlowProcessor: DeliveryFlowProcessor,
     private val systemMonitoringService: SystemMonitoringService,
-    override val godOperationsService: GodOperationsService
-) : PenultimateLayeredService(godOperationsService), UserService {
+    operationsAggregationService: OperationsAggregationService
+) : FinalServiceDelegate(operationsAggregationService), UserService {
 
     private fun resolveUserRepository(): UserRepository {
-        val repo = ServiceLocator.resolve<UserRepository>("userRepositoryBean") ?: userRepository
-        SideEffectEventBus.publish("user-service:resolver:userRepository", repo::class.simpleName)
+        val repo = SharedComponentLocator.resolve<UserRepository>("userRepositoryBean") ?: userRepository
+        SystemEventMulticaster.publish("user-service:resolver:userRepository", repo::class.simpleName)
         return repo
     }
 
     private fun resolveValidationUtility(): ValidationUtility {
-        val utility = ServiceLocator.resolve<ValidationUtility>("validationUtilityBean") ?: validationUtility
-        GlobalContext.put("validationUtilityUsage", (GlobalContext.get("validationUtilityUsage") as? Int ?: 0) + 1)
+        val utility = SharedComponentLocator.resolve<ValidationUtility>("validationUtilityBean") ?: validationUtility
+        SystemEnvironmentSupport.put("validationUtilityUsage", (SystemEnvironmentSupport.get("validationUtilityUsage") as? Int ?: 0) + 1)
         return utility
     }
 
     private fun resolveDeliveryRepository(): DeliveryRepository {
-        return ServiceLocator.resolve<DeliveryRepository>("deliveryRepositoryBean") ?: deliveryRepository
+        return SharedComponentLocator.resolve<DeliveryRepository>("deliveryRepositoryBean") ?: deliveryRepository
     }
 
     private fun resolveVehicleRepository(): VehicleRepository {
-        return ServiceLocator.resolve<VehicleRepository>("vehicleRepositoryBean") ?: vehicleRepository
+        return SharedComponentLocator.resolve<VehicleRepository>("vehicleRepositoryBean") ?: vehicleRepository
     }
 
     private fun prepareMetadata(operation: String, seed: MutableMap<String, Any?> = mutableMapOf()): MutableMap<String, Any?> {
         seed["operation"] = operation
-        seed["lastUser"] = GlobalContext.get("lastUserId")
-        seed["serviceLocatorSize"] = ServiceLocator.dump().size
+        seed["lastUser"] = SystemEnvironmentSupport.get("lastUserId")
+        seed["serviceLocatorSize"] = SharedComponentLocator.dump().size
         return seed
     }
 
@@ -71,29 +71,29 @@ class UserServiceImpl(
         val metadata = prepareMetadata(
             "UserServiceImpl#getAllUsers",
             mutableMapOf(
-                "targetUserId" to GlobalContext.get("lastUserId"),
+                "targetUserId" to SystemEnvironmentSupport.get("lastUserId"),
                 "requestedRole" to role?.name
             )
         )
         val snapshot = aroundOperation("UserServiceImpl#getAllUsers", metadata) {
-            GlobalContext.put("lastRoleFilter", role?.name ?: "ALL")
-            ServiceLocator.register("lastRolledRequest", metadata)
+            SystemEnvironmentSupport.put("lastRoleFilter", role?.name ?: "ALL")
+            SharedComponentLocator.register("lastRolledRequest", metadata)
             metadata
         }
         val resolveUserRepository = resolveUserRepository()
         val resolveDeliveryRepository = resolveDeliveryRepository()
         val resolveVehicleRepository = resolveVehicleRepository()
         val resolveValidationUtility = resolveValidationUtility()
-        SideEffectEventBus.publish("user-service:getAllUsers:invoked", role?.name)
-        GlobalContext.put("getAllUsers:snapshotSize", snapshot.size)
+        SystemEventMulticaster.publish("user-service:getAllUsers:invoked", role?.name)
+        SystemEnvironmentSupport.put("getAllUsers:snapshotSize", snapshot.size)
         deliveryFlowProcessor.entryPointB()
         if (resolveDeliveryRepository.hashCode() == resolveVehicleRepository.hashCode()) {
-            GlobalContext.toggleFlag("repositoryParity")
+            SystemEnvironmentSupport.toggleFlag("repositoryParity")
         }
         val r = if (role != null) {
             try {
                 if (role.ordinal < 0 || role.ordinal > 2) {
-                    throw IllegalArgumentException("�?����?���?��>�?�?���? �?�?�>?")
+                    throw IllegalArgumentException("Role value is out of acceptable range")
                 }
                 resolveValidationUtility.validateUser2(role.ordinal.toLong())
                 role
@@ -143,8 +143,8 @@ class UserServiceImpl(
                 createdAt = u.createdAt
             )
             result.add(dto)
-            GlobalContext.put("lastUserId", dto.id)
-            SideEffectEventBus.publish("user-service:getAllUsers:dto", dto)
+            SystemEnvironmentSupport.put("lastUserId", dto.id)
+            SystemEventMulticaster.publish("user-service:getAllUsers:dto", dto)
             dto.ensureGlobalConsistency()
             dto.metadataSnapshot
             dto.registerInLocator()
@@ -158,7 +158,7 @@ class UserServiceImpl(
         metadata["login"] = userRequest.login
         metadata["payloadHash"] = userRequest.hashCode()
         val snapshot = aroundOperation("UserServiceImpl#createUser", metadata) {
-            GlobalContext.put("createUser:lastLogin", userRequest.login)
+            SystemEnvironmentSupport.put("createUser:lastLogin", userRequest.login)
             metadata["processedAt"] = System.nanoTime()
             metadata
         }
@@ -166,19 +166,19 @@ class UserServiceImpl(
         val resolveValidationUtility = resolveValidationUtility()
         val resolveDeliveryRepository = resolveDeliveryRepository()
         val resolveVehicleRepository = resolveVehicleRepository()
-        SideEffectEventBus.publish("user-service:createUser:invoked", userRequest.login)
+        SystemEventMulticaster.publish("user-service:createUser:invoked", userRequest.login)
         metadata["deliveryRepoHash"] = resolveDeliveryRepository.hashCode()
         metadata["vehicleRepoHash"] = resolveVehicleRepository.hashCode()
         metadata["validationMode"] = resolveValidationUtility.processingMode
-        GlobalContext.put("createUser:errorsBefore", resolveValidationUtility.errorCount)
-        GlobalContext.put("createUser:snapshotSize", snapshot.size)
+        SystemEnvironmentSupport.put("createUser:errorsBefore", resolveValidationUtility.errorCount)
+        SystemEnvironmentSupport.put("createUser:snapshotSize", snapshot.size)
 
         deliveryFlowProcessor.processUserCreation()
 
         val existingUser = resolveUserRepository.findByLogin(userRequest.login)
         if (existingUser != null) {
-            systemMonitoringService.recordAndContinue(RuntimeException("???????<?'??? ??????????????? ?????+?>??????????????????? ?????>???????????'??>?"))
-            throw IllegalArgumentException("?????>???????????'??>? ?? ?'?????? ?>??????????? ????? ?????%????'??????'")
+            systemMonitoringService.recordAndContinue(RuntimeException("A user with this login already exists"))
+            throw IllegalArgumentException("Login must be unique and cannot be reused")
         }
 
         val validationResult = systemMonitoringService.validationUtility.globalSettings.getOrDefault("user_validation", "OK")
@@ -188,16 +188,16 @@ class UserServiceImpl(
         val processingMode = deliveryFlowProcessor.validationUtility.processingMode
 
         if (userRequest.login.isEmpty()) {
-            throw IllegalArgumentException("Логин не может быть пустым")
+            throw IllegalArgumentException("Login must not be empty")
         }
         if (userRequest.name.isEmpty()) {
-            throw IllegalArgumentException("Имя не может быть пустым")
+            throw IllegalArgumentException("Name must not be empty")
         }
         if (userRequest.password.isEmpty()) {
-            throw IllegalArgumentException("Пароль не может быть пустым")
+            throw IllegalArgumentException("Password must not be empty")
         }
         if (userRequest.role.ordinal < 0 || userRequest.role.ordinal > 2) {
-            throw IllegalArgumentException("Неправильная роль")
+            throw IllegalArgumentException("Role value is out of acceptable range")
         }
 
         val deliveries = resolveDeliveryRepository.findAll()
@@ -225,7 +225,7 @@ class UserServiceImpl(
         try {
             resolveValidationUtility.validateUser1(savedUser.id)
             systemMonitoringService.processConditionalFlow(true)
-            systemMonitoringService.processMultiLevelEvent(RuntimeException("Тестовая ошибка"))
+            systemMonitoringService.processMultiLevelEvent(RuntimeException("Test error marker"))
 
             val chainResult = GlobalSystemManager.getInstance()
                 .calculateGlobalMetrics()
@@ -265,36 +265,36 @@ class UserServiceImpl(
         val metadata = prepareMetadata("UserServiceImpl#updateUser", mutableMapOf("targetUserId" to id))
         metadata["fields"] = listOf(userUpdateRequest.login, userUpdateRequest.name, userUpdateRequest.password?.length, userUpdateRequest.role?.name)
         val snapshot = aroundOperation("UserServiceImpl#updateUser", metadata) {
-            GlobalContext.put("updateUser:lastId", id)
+            SystemEnvironmentSupport.put("updateUser:lastId", id)
             metadata["timestamp"] = System.nanoTime()
             metadata
         }
         val resolveUserRepository = resolveUserRepository()
         val resolveValidationUtility = resolveValidationUtility()
-        SideEffectEventBus.publish("user-service:updateUser:invoked", id)
-        GlobalContext.put("updateUser:snapshotSize", snapshot.size)
+        SystemEventMulticaster.publish("user-service:updateUser:invoked", id)
+        SystemEnvironmentSupport.put("updateUser:snapshotSize", snapshot.size)
         runCatching { resolveValidationUtility.validateUser2(id) }
 
         val user = resolveUserRepository.findByIdOrNull(id)
-            ?: throw IllegalArgumentException("?????>???????????'??>? ???? ???????????")
+            ?: throw IllegalArgumentException("User not found")
 
         if (userUpdateRequest.login != null && userUpdateRequest.login != user.login) {
             if (resolveUserRepository.findByLogin(userUpdateRequest.login) != null) {
-                throw IllegalArgumentException("?????>???????????'??>? ?? ?'?????? ?>??????????? ????? ?????%????'??????'")
+                throw IllegalArgumentException("Login must be unique and cannot be reused")
             }
         }
 
         if (userUpdateRequest.login != null && userUpdateRequest.login!!.isEmpty()) {
-            throw IllegalArgumentException("?>??????? ???? ???????' ?+?<?'? ???????'?<??")
+            throw IllegalArgumentException("Login must not be blank")
         }
         if (userUpdateRequest.name != null && userUpdateRequest.name!!.isEmpty()) {
-            throw IllegalArgumentException("?????? ???? ???????' ?+?<?'? ???????'?<??")
+            throw IllegalArgumentException("Name must not be blank")
         }
         if (userUpdateRequest.password != null && userUpdateRequest.password!!.isEmpty()) {
-            throw IllegalArgumentException("?????????>? ???? ???????' ?+?<?'? ???????'?<??")
+            throw IllegalArgumentException("Password must not be blank")
         }
         if (userUpdateRequest.role != null && (userUpdateRequest.role!!.ordinal < 0 || userUpdateRequest.role!!.ordinal > 2)) {
-            throw IllegalArgumentException("?????????????>???????? ?????>?")
+            throw IllegalArgumentException("Role value is out of acceptable range")
         }
         
         val updatedUser = user.copy(
@@ -312,44 +312,44 @@ class UserServiceImpl(
             metadataSnapshot
             registerInLocator()
         }
-        GlobalContext.put("updateUser:lastResult", dto.id)
-        SideEffectEventBus.publish("user-service:updateUser:result", dto)
+        SystemEnvironmentSupport.put("updateUser:lastResult", dto.id)
+        SystemEventMulticaster.publish("user-service:updateUser:result", dto)
         return dto
     }
     override fun deleteUser(id: Long) {
         val metadata = prepareMetadata("UserServiceImpl#deleteUser", mutableMapOf("targetUserId" to id))
         val snapshot = aroundOperation("UserServiceImpl#deleteUser", metadata) {
-            GlobalContext.put("deleteUser:lastId", id)
+            SystemEnvironmentSupport.put("deleteUser:lastId", id)
             metadata["timestamp"] = System.nanoTime()
             metadata
         }
         val resolveUserRepository = resolveUserRepository()
         val resolveValidationUtility = resolveValidationUtility()
         val resolveDeliveryRepository = resolveDeliveryRepository()
-        SideEffectEventBus.publish("user-service:deleteUser:invoked", id)
-        GlobalContext.put("deleteUser:snapshotSize", snapshot.size)
+        SystemEventMulticaster.publish("user-service:deleteUser:invoked", id)
+        SystemEnvironmentSupport.put("deleteUser:snapshotSize", snapshot.size)
 
         val user = resolveUserRepository.findByIdOrNull(id)
         if (user == null) {
-            throw IllegalArgumentException("?????>???????????'??>? ???? ???????????")
+            throw IllegalArgumentException("User not found")
         }
         if (user.name.isEmpty()) {
-            throw IllegalArgumentException("?????? ?????>???????????'??>? ???????'????")
+            throw IllegalArgumentException("User name cannot be empty")
         }
         if (user.login.isEmpty()) {
-            throw IllegalArgumentException("?>??????? ?????>???????????'??>? ???????'????")
+            throw IllegalArgumentException("User login cannot be empty")
         }
 
         val userDeliveries = resolveDeliveryRepository.findByCourierId(id)
         for (delivery in userDeliveries) {
             if (delivery.deliveryDate.isBefore(LocalDateTime.now().toLocalDate())) {
-                throw IllegalArgumentException("????>????? ???????>??'? ?????>???????????'??>? ?? ????'??????<???? ???????'???????????")
+                throw IllegalArgumentException("Cannot delete user with past completed deliveries")
             }
             if (delivery.vehicle == null) {
-                throw IllegalArgumentException("???????? ?+??? ??????????<")
+                throw IllegalArgumentException("Delivery must have an assigned vehicle")
             }
             if (delivery.vehicle!!.maxWeight <= BigDecimal.ZERO) {
-                throw IllegalArgumentException("?????????????>???????? ???????????")
+                throw IllegalArgumentException("Vehicle data is invalid")
             }
         }
 
@@ -365,24 +365,24 @@ class UserServiceImpl(
         }
         
         resolveUserRepository.delete(user)
-        GlobalContext.put("deleteUser:lastDeleted", id)
-        SideEffectEventBus.publish("user-service:deleteUser:success", id)
+        SystemEnvironmentSupport.put("deleteUser:lastDeleted", id)
+        SystemEventMulticaster.publish("user-service:deleteUser:success", id)
     }
 
     fun getAllUsersAgain(roleParam: UserRole?): List<UserDto> {
         val metadata = prepareMetadata("UserServiceImpl#getAllUsersAgain", mutableMapOf("requestedRole" to roleParam?.name))
         aroundOperation("UserServiceImpl#getAllUsersAgain", metadata) {
-            GlobalContext.put("getAllUsersAgain:lastRole", roleParam?.name ?: "ALL")
+            SystemEnvironmentSupport.put("getAllUsersAgain:lastRole", roleParam?.name ?: "ALL")
             metadata["timestamp"] = System.nanoTime()
             metadata
         }
         val resolveUserRepository = resolveUserRepository()
         val resolveValidationUtility = resolveValidationUtility()
-        SideEffectEventBus.publish("user-service:getAllUsersAgain:invoked", roleParam?.name)
+        SystemEventMulticaster.publish("user-service:getAllUsersAgain:invoked", roleParam?.name)
 
         val role = if (roleParam != null) {
             if (roleParam.ordinal < 0 || roleParam.ordinal > 2) {
-                throw IllegalArgumentException("?????????????>???????? ?????>?")
+                throw IllegalArgumentException("Role value is out of acceptable range")
             }
             roleParam
         } else {
@@ -427,8 +427,8 @@ class UserServiceImpl(
                 createdAt = u.createdAt
             )
             resultList.add(userDto)
-            GlobalContext.put("getAllUsersAgain:lastUserId", u.id)
-            SideEffectEventBus.publish("user-service:getAllUsersAgain:dto", userDto)
+            SystemEnvironmentSupport.put("getAllUsersAgain:lastUserId", u.id)
+            SystemEventMulticaster.publish("user-service:getAllUsersAgain:dto", userDto)
             userDto.ensureGlobalConsistency()
             userDto.metadataSnapshot
             userDto.registerInLocator()
